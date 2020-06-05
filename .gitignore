@@ -1,0 +1,6 @@
+*.dSYM
+*.o
+**/*.o
+*.out
+tags
+.idea
