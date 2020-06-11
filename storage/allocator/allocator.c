@@ -11,7 +11,19 @@
  * --------------------------------------------------------------------------
  */
 
-// 大块内存初始化
+static mem_shared_globals *shared_globals = NULL;
+
+#if defined(USE_MMAP)
+static const zend_shared_memory_handler_entry handler_entry = { "mmap", &zend_alloc_mmap_handlers };
+#elif defined(USE_SHM)
+static const zend_shared_memory_handler_entry handler_entry = { "shm", &zend_alloc_shm_handlers };
+#elif defined(USE_SHM_OPEN)
+static const zend_shared_memory_handler_entry handler_entry = { "posix", &zend_alloc_posix_handlers };
+#else
+#error(no defined shared memory supported)
+#endif
+
+// 内存初始化
 int shared_alloc_startup(size_t requested_size)
 {
     int res;
@@ -33,6 +45,13 @@ int shared_alloc_startup(size_t requested_size)
 
         return ALLOC_FAILURE;
     }
+
+    int segment_array_size = MMSG(shared_segments_count) ( sizeof(void *) + SMH(segment_type_size)() );
+
+    if (shared_segments[0]->size <= MEM_ALIGNED_SIZE(sizeof(mem_shared_globals) + segment_array_size)) {
+        return ALLOC_FAILURE;
+    }
+
     shared_globals = (mem_shared_globals *)(shared_segments[0]->p);
 
     MMSG(shared_free) = requested_size;
@@ -45,12 +64,13 @@ int shared_alloc_startup(size_t requested_size)
         return ALLOC_FAILURE;
     }
 
-    int segment_array_size = MMSG(shared_segments_count) * sizeof(void *) + SMH(segment_type_size)() * MMSG(shared_segments_count);
     MMSG(shared_segments) = (zend_shared_segment **) zend_shared_alloc(segment_array_size);
     memcpy(MMSG(shared_segments), shared_segments,  segment_array_size);
 
     MMSG(wasted_shared_memory) = 0;
     MMSG(memory_exhausted) = 0;
+
+    MMSG(app_shared_globals) = MMSG(shared_segments)[0]->p + MMSG(shared_segments)[0]->pos;
 
     free(shared_segments);
 
@@ -124,11 +144,9 @@ void shared_alloc_protect(int mode)
 int shared_in_shm(void *ptr)
 {
     int i;
-
     if (!shared_globals) {
         return 0;
     }
-
     for (i = 0; i < MMSG(shared_segments_count); i++) {
         if ((char*)ptr >= (char*)MMSG(shared_segments)[i]->p &&
             (char*)ptr < (char*)MMSG(shared_segments)[i]->p + MMSG(shared_segments)[i]->size) {
@@ -137,3 +155,4 @@ int shared_in_shm(void *ptr)
     }
     return 0;
 }
+

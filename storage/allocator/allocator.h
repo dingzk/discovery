@@ -27,7 +27,7 @@
 
 typedef struct _zend_shared_segment {
     size_t  size;
-    size_t  pos;
+    volatile size_t  pos;
     void   *p;
 } zend_shared_segment;
 
@@ -62,24 +62,22 @@ typedef struct _handler_entry {
 
 int shared_alloc_startup(size_t requested_size);
 void *zend_shared_alloc(size_t size);
+//void zend_shared_clean(void);
 void shared_alloc_shutdown(void);
 void shared_alloc_protect(int mode);
 int shared_in_shm(void *ptr);
 
 #if defined(USE_MMAP)
 extern zend_shared_memory_handlers zend_alloc_mmap_handlers;
-static const zend_shared_memory_handler_entry handler_entry = { "mmap", &zend_alloc_mmap_handlers };
 #elif defined(USE_SHM)
 extern zend_shared_memory_handlers zend_alloc_shm_handlers;
-static const zend_shared_memory_handler_entry handler_entry = { "shm", &zend_alloc_shm_handlers };
 #elif defined(USE_SHM_OPEN)
 extern zend_shared_memory_handlers zend_alloc_posix_handlers;
-static const zend_shared_memory_handler_entry handler_entry = { "posix", &zend_alloc_posix_handlers };
 #else
-#error(no defined shared memory supported)
+#error(no defined shared memory handlers supported)
 #endif
 
-static mem_shared_globals *shared_globals = NULL;
+extern static mem_shared_globals *shared_globals;
 
 #define SMH(s) (handler_entry.handler->(s))
 #define MMSG(s) (shared_globals->s)
