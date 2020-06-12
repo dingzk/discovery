@@ -8,11 +8,24 @@
 #include <stdint.h>
 #include "storage/allocator/allocator.h"
 
-#define MAX_KEY_LEN		(48)
+#define MAX_SIGN_LEN            (33)
+#define MAX_KEY_LEN             (48)
+
+typedef enum {
+    SUCCESS =  0,
+    FAILURE = -1,
+} RESULT_CODE;
+
+typedef enum {
+    FLAG_OK =  0,
+    FLAG_DELETE = 1,
+} FLAG_CODE;
 
 typedef struct {
+    uint64_t        atime;
     uint32_t        next;      /* hash collision chain */
     uint32_t        len;
+    uint32_t        real_size;
     char            data[1];
 } String;
 
@@ -37,9 +50,8 @@ typedef struct _Bucket {
     uint32_t        crc;
     uint32_t        len;
     uint32_t        flag;
-    uint32_t        size;
     uint32_t        mutex;
-    char            sign[33];
+    char            sign[MAX_SIGN_LEN];
     char            key[MAX_KEY_LEN];
 } Bucket;
 
@@ -69,7 +81,7 @@ Bucket *hash_find_bucket(const HashTable *ht, char *key, uint32_t len);
 int hash_delete_bucket(const HashTable *ht, char *key, uint32_t len);
 int hash_add_or_update_bucket(const HashTable *ht, const char *key, uint32_t len, char *data, uint32_t size);
 
-char* get_hash_info(const HashTable *ht);
+void get_hash_info(const HashTable *ht);
 
 
 

@@ -5,6 +5,8 @@
 #include "storage.h"
 #include <sched.h>
 #include <string.h>
+#include <time.h>
+#include <stdio.h>
 
 
 static inline unsigned int align_size(uint32_t size) {
@@ -241,6 +243,10 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
     ht->nTableMask = -ht->nTableSize;
     ht->nNextFreeElement = 0;
     uint32_t *ptr =  (uint32_t *)zend_shared_alloc(ht->nTableSize * (sizeof(uint32_t) + sizeof(Bucket));
+    if (!ptr) {
+        *err = "init bucket error";
+        return NULL;
+    }
     memset(ptr, HT_INVALID_IDX, ht->nTableSize);
     ht->arData = (Bucket *)(ptr + ht->nTableSize);
 
@@ -249,11 +255,33 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
 
 void hash_destory(const HashTable *ht)
 {
-
+    shared_alloc_shutdown();
 }
 
 void hash_dump(const HashTable *ht)
 {
+    Bucket *p = ht->arData;
+    Bucket *end = p + ht->nNumUsed;
+    char *data;
+    for (;p != end; p++) {
+        if (p->flag == FLAG_DELETE) {
+            continue;
+        }
+        printf("-------------\n");
+
+        printf("sign: %s\n", p->sign);
+        printf("key: %s\n", p->sign);
+        data = strndup(p->val->data, p->val->len);
+        printf("value: %s\n", data);
+        free(data);
+
+        printf("-------------\n");
+    }
+
+    printf("Hashtable summary:\n");
+    printf("ht.nNumUsed : %d\n", ht->nNumUsed);
+    printf("ht.nNumOfElements: %d\n", ht->nNumOfElements);
+    printf("ht.nTableSize: %d\n", ht->nTableSize);
 
 }
 
@@ -269,11 +297,11 @@ Bucket *hash_find_bucket(const HashTable *ht, char *key, uint32_t len)
     int trytimes = 0;
 
     while (idx != HT_INVALID_IDX) {
-        p = arData[idx];
+        p = arData + idx;
 RETRY:
         if (p->h == h && p->key && p->len == len && memcmp(p->key, key, len) == 0) {
             trytimes ++;
-            if (crc32(p->val->data, p->val->len) == p->crc) {
+            if (p->val && crc32(p->val->data, p->val->len) == p->crc) {
                 return p;
             }
             if (trytimes > 3) {
@@ -290,27 +318,92 @@ RETRY:
 
 int hash_delete_bucket(const HashTable *ht, char *key, uint32_t len)
 {
+    uint64_t h = hash_func2(key, len);
+    uint32_t nIndex = h | ht->nTableMask;
+    Bucket *arData = ht->arData;
+    uint32_t idx = ((uint32_t*)arData)[(int32_t)nIndex];
 
+    Bucket *p, *prev = NULL;
+    while (idx != HT_INVALID_IDX) {
+        p = arData + idx;
+        if (p->h == h && p->key && p->len == len && memcmp(p->key, key, len) == 0) {
+            if (p && p->val && p->flag != FLAG_DELETE) {
+                ht->nNumOfElements--;
+                p->flag = FLAG_DELETE;
+                if (prev == NULL) {
+                    ((uint32_t*)arData)[(int32_t)nIndex] = p->val->next;
+                } else {
+                    prev->val->next = p->val->next;
+                }
+                return SUCCESS;
+            }
+        }
+        prev = p;
+        idx = p->val->next;
+    }
+
+    return SUCCESS;
 }
 
-static int init_bucket(Bucket *p, uint64_t h, char *sign, uint32_t sign_len, const char *key, uint32_t len, char *data, uint32_t size)
+static int init_bucket(Bucket *p, uint64_t h, char *sign, uint32_t sign_len, const char *key, uint32_t key_len, char *data, uint32_t data_len)
 {
-    memcpy(p, 0, sizeof(Bucket));
-    p->crc = crc32(key, len);
-    p->len = len;
-    if (len > MAX_KEY_LEN) {
-        return 0;
+    if (!p || key_len > MAX_KEY_LEN) {
+        return FAILURE;
     }
+
+    // value
+    uint32_t real_size = alloc_real_size(sizeof(String) + data_len - 1);
+    String *v = (String *)zend_shared_raw_alloc(real_size);
+    if (!v) {
+        return FAILURE;
+    }
+    memcpy(v->data, data, data_len);
+    v->len = data_len;
+    v->next = HT_INVALID_IDX;
+    v->real_size = real_size;
+    v->atime = time(NULL);
+
+    // bucket
+    memset(p, 0, sizeof(Bucket));
+    p->crc = crc32(data, data_len);
+    p->len = key_len;
+    memcpy(p->key, key, key_len);
     p->h = h;
     memcpy(p->sign, sign, sign_len);
-    memcpy(p->key, key, len);
-    p->val = zend_shared_alloc(sizeof(String) + size);
-    memcpy(p->val->data, data, size);
-    (p->val->data)[size] = '\0';
-    p->val->len = size;
-    p->val->next = HT_INVALID_IDX;
+    p->sign[sign_len] = '\0';
+    p->val = v;
 
     return 1;
+}
+
+static int update_bucket(Bucket *p, char *sign, uint32_t sign_len, char *data, uint32_t data_len)
+{
+    if (!p || p->len > MAX_KEY_LEN) {
+        return FAILURE;
+    }
+
+    String *v = p->val;
+    uint32_t next_idx = v->next;
+
+    if (v->real_size < data_len + sizeof(String) - 1) {
+        uint32_t real_size = alloc_real_size(sizeof(String) + data_len - 1);
+        v = (String *)zend_shared_raw_alloc(real_size);
+        if (!v) {
+            return FAILURE;
+        }
+    }
+
+    memcpy(v->data, data, data_len);
+    v->len = data_len;
+    v->atime = time(NULL);
+    v->next = next_idx;
+
+    p->val = v;
+    p->crc = crc32(data, data_len);
+    memcpy(p->sign, sign, sign_len);
+    p->sign[sign_len] = '\0';
+
+    return SUCCESS;
 }
 
 int hash_add_or_update_bucket(const HashTable *ht, char *sign, uint32_t sign_len, const char *key, uint32_t len, char *data, uint32_t size)
@@ -321,29 +414,47 @@ int hash_add_or_update_bucket(const HashTable *ht, char *sign, uint32_t sign_len
     uint32_t nIndex = h | ht->nTableMask;
 
     uint32_t idx = ((uint32_t *)arData)[(int32_t)nIndex];
+    uint32_t next_idx = HT_INVALID_IDX;
 
     if (idx == HT_INVALID_IDX) {
-DO_ADD:
+ADD_TO_HASH:
         ht->nNumUsed++;
         ht->nNumOfElements++;
+        if (ht->nTableSize < ht->nNumUsed) {
+            return FAILURE;
+        }
         p = arData + ht->nNumUsed;
         int ret = init_bucket(p, h, sign, sign_len, key, len, data, size);
-        if (!ret) {
-            return 0;
+        if (ret == FAILURE) {
+            return FAILURE;
         }
         ((uint32_t *)arData)[(int32_t)nIndex] = ht->nNumUsed;
-        return 1;
+        p->val->next = next_idx;
+        return SUCCESS;
     } else {
-        
+        next_idx = idx;
+        while (idx != HT_INVALID_IDX) {
+            p = arData + idx;
+            if (p->h == h && p->key && p->len == len && memcmp(p->key, key, len) == 0) {
+UPDATE_TO_HASH:
+                if (p->crc != crc32(data, data_len)) {
+                    return update_bucket(p, sign, sign_len, key, len, data, size);
+                }
+                return SUCCESS;
+            }
+            idx = p->val->next;
+        }
+        // add
+        goto ADD_TO_HASH;
 
     }
 
-
-
-
 }
 
-char* get_hash_info(const HashTable *ht)
+void get_hash_info(const HashTable *ht)
 {
-
+    printf("Hashtable summary:\n");
+    printf("ht.nNumUsed : %d\n", ht->nNumUsed);
+    printf("ht.nNumOfElements: %d\n", ht->nNumOfElements);
+    printf("ht.nTableSize: %d\n", ht->nTableSize);
 }

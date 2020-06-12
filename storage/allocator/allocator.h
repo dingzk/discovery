@@ -19,6 +19,7 @@
 
 #define MEM_SEGMENT_MIN_SIZE        (4*1024*1024)
 
+#define STORAGE_FACTOR              (1.25)
 #define MEM_ALIGNMENT               8
 #define MEM_ALIGNMENT_MASK          ~(MEM_ALIGNMENT - 1)
 #define MEM_ALIGNED_SIZE(x)         (((x) + MEM_ALIGNMENT - 1) & MEM_ALIGNMENT_MASK)
@@ -62,6 +63,8 @@ typedef struct _handler_entry {
 
 int shared_alloc_startup(size_t requested_size);
 void *zend_shared_alloc(size_t size);
+void *zend_shared_raw_alloc(size_t size);
+size_t alloc_real_size(size_t size);
 //void zend_shared_clean(void);
 void shared_alloc_shutdown(void);
 void shared_alloc_protect(int mode);

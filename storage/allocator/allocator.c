@@ -80,9 +80,14 @@ int shared_alloc_startup(size_t requested_size)
 // 内存分配
 void *zend_shared_alloc(size_t size)
 {
+    return zend_shared_raw_alloc(MEM_ALIGNED_SIZE(size));
+}
+
+void *zend_shared_raw_alloc(size_t size)
+{
     int i;
-    size = MEM_ALIGNED_SIZE(size);
-    if (MMSG(shared_free) < size) {
+
+    if (MMSG(shared_free) < size || size == 0) {
         return NULL;
     }
     // lock ?
@@ -98,6 +103,17 @@ void *zend_shared_alloc(size_t size)
     }
 
     return NULL;
+}
+
+size_t alloc_real_size(size_t size)
+{
+    size_t real_size = MEM_TRUE_SIZE(size * STORAGE_FACTOR);
+
+    if (MMSG(shared_free) < real_size) {
+        return 0;
+    }
+
+    return real_size;
 }
 
 // 内存释放
