@@ -22,7 +22,7 @@
 #define STORAGE_FACTOR              (1.25)
 #define MEM_ALIGNMENT               8
 #define MEM_ALIGNMENT_MASK          ~(MEM_ALIGNMENT - 1)
-#define MEM_ALIGNED_SIZE(x)         (((x) + MEM_ALIGNMENT - 1) & MEM_ALIGNMENT_MASK)
+#define MEM_ALIGNED_SIZE(x)         ((int)((x) + MEM_ALIGNMENT - 1) & (MEM_ALIGNMENT_MASK))
 #define MEM_MIN_BLOCK_SIZE          128
 #define MEM_TRUE_SIZE(x)            ((x < MEM_MIN_BLOCK_SIZE)? (MEM_MIN_BLOCK_SIZE) : (MEM_ALIGNED_SIZE(x)))
 
@@ -80,9 +80,9 @@ extern zend_shared_memory_handlers zend_alloc_posix_handlers;
 #error(no defined shared memory handlers supported)
 #endif
 
-extern static mem_shared_globals *shared_globals;
+extern mem_shared_globals *shared_globals;
 
-#define SMH(s) (handler_entry.handler->(s))
+#define SMH(s) (handler_entry.handler->s)
 #define MMSG(s) (shared_globals->s)
 
 #endif //DISCOVERY_ALLOCATOR_H

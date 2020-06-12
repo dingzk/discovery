@@ -56,13 +56,13 @@ typedef struct _Bucket {
 } Bucket;
 
 typedef struct {
-    uint32_t          nTableMask;
-    Bucket           *arData;
-    uint32_t          nNumUsed;
-    uint32_t          nNumOfElements;
-    uint32_t          nTableSize;
-    uint32_t          nInternalPointer;
-    zend_long         nNextFreeElement;
+    uint32_t        nTableMask;
+    Bucket          *arData;
+    uint32_t        nNumUsed;
+    uint32_t        nNumOfElements;
+    uint32_t        nTableSize;
+    uint32_t        nInternalPointer;
+    uint32_t        nNextFreeElement;
 } HashTable;
 
 #define HT_INVALID_IDX ((uint32_t) -1)
@@ -74,12 +74,12 @@ typedef struct {
 
 
 HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err);
-void hash_destory(const HashTable *ht);
+void hash_destory(HashTable *ht);
 void hash_dump(const HashTable *ht);
 
-Bucket *hash_find_bucket(const HashTable *ht, char *key, uint32_t len);
-int hash_delete_bucket(const HashTable *ht, char *key, uint32_t len);
-int hash_add_or_update_bucket(const HashTable *ht, const char *key, uint32_t len, char *data, uint32_t size);
+Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
+int hash_delete_bucket(HashTable *ht, char *key, uint32_t len);
+int hash_add_or_update_bucket(HashTable *ht, const char *sign, uint32_t sign_len, const char *key, uint32_t len, const char *data, uint32_t size);
 
 void get_hash_info(const HashTable *ht);
 

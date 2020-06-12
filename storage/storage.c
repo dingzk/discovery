@@ -234,7 +234,7 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
     }
 
     int real_size = align_size(k_size / sizeof(Bucket));
-    if (!((size / sizeof(Bucket)) & ~(real_size << 1))) {
+    if (!((k_size / sizeof(Bucket)) & ~(real_size << 1))) {
         real_size <<= 1;
     }
 
@@ -242,7 +242,7 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
     ht->nNumUsed = 0;
     ht->nTableMask = -ht->nTableSize;
     ht->nNextFreeElement = 0;
-    uint32_t *ptr =  (uint32_t *)zend_shared_alloc(ht->nTableSize * (sizeof(uint32_t) + sizeof(Bucket));
+    uint32_t *ptr =  (uint32_t *)zend_shared_alloc(ht->nTableSize * (sizeof(uint32_t) + sizeof(Bucket)));
     if (!ptr) {
         *err = "init bucket error";
         return NULL;
@@ -253,7 +253,7 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
     return ht;
 }
 
-void hash_destory(const HashTable *ht)
+void hash_destory(HashTable *ht)
 {
     shared_alloc_shutdown();
 }
@@ -285,7 +285,7 @@ void hash_dump(const HashTable *ht)
 
 }
 
-Bucket *hash_find_bucket(const HashTable *ht, char *key, uint32_t len)
+Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len)
 {
     uint64_t h = hash_func2(key, len);
     Bucket *p;
@@ -316,7 +316,7 @@ RETRY:
     return NULL;
 }
 
-int hash_delete_bucket(const HashTable *ht, char *key, uint32_t len)
+int hash_delete_bucket(HashTable *ht, char *key, uint32_t len)
 {
     uint64_t h = hash_func2(key, len);
     uint32_t nIndex = h | ht->nTableMask;
@@ -345,7 +345,7 @@ int hash_delete_bucket(const HashTable *ht, char *key, uint32_t len)
     return SUCCESS;
 }
 
-static int init_bucket(Bucket *p, uint64_t h, char *sign, uint32_t sign_len, const char *key, uint32_t key_len, char *data, uint32_t data_len)
+static int init_bucket(Bucket *p, uint64_t h, const char *sign, uint32_t sign_len, const char *key, uint32_t key_len, const char *data, uint32_t data_len)
 {
     if (!p || key_len > MAX_KEY_LEN) {
         return FAILURE;
@@ -376,7 +376,7 @@ static int init_bucket(Bucket *p, uint64_t h, char *sign, uint32_t sign_len, con
     return 1;
 }
 
-static int update_bucket(Bucket *p, char *sign, uint32_t sign_len, char *data, uint32_t data_len)
+static int update_bucket(Bucket *p, const char *sign, uint32_t sign_len, const char *data, uint32_t data_len)
 {
     if (!p || p->len > MAX_KEY_LEN) {
         return FAILURE;
@@ -406,7 +406,7 @@ static int update_bucket(Bucket *p, char *sign, uint32_t sign_len, char *data, u
     return SUCCESS;
 }
 
-int hash_add_or_update_bucket(const HashTable *ht, char *sign, uint32_t sign_len, const char *key, uint32_t len, char *data, uint32_t size)
+int hash_add_or_update_bucket(HashTable *ht, const char *sign, uint32_t sign_len, const char *key, uint32_t len, const char *data, uint32_t size)
 {
     uint64_t h = hash_func2(key, len);
     Bucket *p;
@@ -437,8 +437,8 @@ ADD_TO_HASH:
             p = arData + idx;
             if (p->h == h && p->key && p->len == len && memcmp(p->key, key, len) == 0) {
 UPDATE_TO_HASH:
-                if (p->crc != crc32(data, data_len)) {
-                    return update_bucket(p, sign, sign_len, key, len, data, size);
+                if (p->crc != crc32(data, size)) {
+                    return update_bucket(p, sign, sign_len, data, size);
                 }
                 return SUCCESS;
             }

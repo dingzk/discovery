@@ -3,6 +3,7 @@
 //
 
 #include "allocator.h"
+#include <string.h>
 
 /*
  * zend_shared_segment**
@@ -11,7 +12,7 @@
  * --------------------------------------------------------------------------
  */
 
-static mem_shared_globals *shared_globals = NULL;
+mem_shared_globals *shared_globals = NULL;
 
 #if defined(USE_MMAP)
 static const zend_shared_memory_handler_entry handler_entry = { "mmap", &zend_alloc_mmap_handlers };
@@ -46,7 +47,7 @@ int shared_alloc_startup(size_t requested_size)
         return ALLOC_FAILURE;
     }
 
-    int segment_array_size = MMSG(shared_segments_count) ( sizeof(void *) + SMH(segment_type_size)() );
+    int segment_array_size = shared_segments_count * ( sizeof(void *) + SMH(segment_type_size)() );
 
     if (shared_segments[0]->size <= MEM_ALIGNED_SIZE(sizeof(mem_shared_globals) + segment_array_size)) {
         return ALLOC_FAILURE;
@@ -93,10 +94,10 @@ void *zend_shared_raw_alloc(size_t size)
     // lock ?
     for (i = 0; i < MMSG(shared_segments_count); ++i) {
         if (MMSG(shared_segments)[i]->pos + size < MMSG(shared_segments)[i]->size) {
-            void *retp = (void *)(((char *)MMSG(shared_segments)[i]->pos) + MMSG(shared_segments)[i]->p);
+            void *retp = (void *)(MMSG(shared_segments)[i]->pos + (char *)(MMSG(shared_segments)[i]->p));
             MMSG(shared_free) -= size;
             MMSG(shared_segments)[i]->pos += size;
-            memset(retval, 0, size);
+            memset(retp, 0, size);
 
             return retp;
         }
