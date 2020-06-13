@@ -53,19 +53,27 @@ int shared_alloc_startup(size_t requested_size)
         return ALLOC_FAILURE;
     }
 
-    shared_globals = (mem_shared_globals *)(shared_segments[0]->p);
+    shared_globals = malloc(sizeof(mem_shared_globals));
 
     MMSG(shared_free) = requested_size;
     MMSG(shared_segments_count) = shared_segments_count;
     MMSG(shared_segments) = shared_segments;
 
-    shared_globals = (mem_shared_globals *) zend_shared_alloc(sizeof(mem_shared_globals));
+    mem_shared_globals *shared_globals_tmp = (mem_shared_globals *) zend_shared_alloc(sizeof(mem_shared_globals));
     if (shared_globals == NULL) {
+        free(shared_globals);
         free(shared_segments);
         return ALLOC_FAILURE;
     }
+    memcpy(shared_globals_tmp, shared_globals, sizeof(mem_shared_globals));
+    free(shared_globals);
+    shared_globals = shared_globals_tmp;
 
     MMSG(shared_segments) = (zend_shared_segment **) zend_shared_alloc(segment_array_size);
+    if (MMSG(shared_segments) == NULL) {
+        free(shared_segments);
+        return ALLOC_FAILURE;
+    }
     memcpy(MMSG(shared_segments), shared_segments,  segment_array_size);
 
     MMSG(wasted_shared_memory) = 0;

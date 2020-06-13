@@ -247,7 +247,7 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err)
         *err = "init bucket error";
         return NULL;
     }
-    memset(ptr, HT_INVALID_IDX, ht->nTableSize);
+    memset(ptr, HT_INVALID_IDX, ht->nTableSize *  sizeof(uint32_t));
     ht->arData = (Bucket *)(ptr + ht->nTableSize);
 
     return ht;
@@ -270,7 +270,7 @@ void hash_dump(const HashTable *ht)
         printf("-------------\n");
 
         printf("sign: %s\n", p->sign);
-        printf("key: %s\n", p->sign);
+        printf("key: %s\n", p->key);
         data = strndup(p->val->data, p->val->len);
         printf("value: %s\n", data);
         free(data);
@@ -418,8 +418,6 @@ int hash_add_or_update_bucket(HashTable *ht, const char *sign, uint32_t sign_len
 
     if (idx == HT_INVALID_IDX) {
 ADD_TO_HASH:
-        ht->nNumUsed++;
-        ht->nNumOfElements++;
         if (ht->nTableSize < ht->nNumUsed) {
             return FAILURE;
         }
@@ -430,6 +428,10 @@ ADD_TO_HASH:
         }
         ((uint32_t *)arData)[(int32_t)nIndex] = ht->nNumUsed;
         p->val->next = next_idx;
+
+        ht->nNumUsed++;
+        ht->nNumOfElements++;
+
         return SUCCESS;
     } else {
         next_idx = idx;

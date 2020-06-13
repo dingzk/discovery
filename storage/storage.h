@@ -56,8 +56,8 @@ typedef struct _Bucket {
 } Bucket;
 
 typedef struct {
-    uint32_t        nTableMask;
     Bucket          *arData;
+    uint32_t        nTableMask;
     uint32_t        nNumUsed;
     uint32_t        nNumOfElements;
     uint32_t        nTableSize;
