@@ -50,6 +50,7 @@ int main(int argc, char **argv)
         }
     }
 
+    get_mem_info();
 
     hash_destory(ht);
 

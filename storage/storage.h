@@ -81,7 +81,7 @@ Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
 int hash_delete_bucket(HashTable *ht, char *key, uint32_t len);
 int hash_add_or_update_bucket(HashTable *ht, const char *sign, uint32_t sign_len, const char *key, uint32_t len, const char *data, uint32_t size);
 
-void get_hash_info(const HashTable *ht);
+void get_mem_info();
 
 
 

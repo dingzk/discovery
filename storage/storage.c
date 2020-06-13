@@ -453,10 +453,7 @@ UPDATE_TO_HASH:
 
 }
 
-void get_hash_info(const HashTable *ht)
+void get_mem_info()
 {
-    printf("Hashtable summary:\n");
-    printf("ht.nNumUsed : %d\n", ht->nNumUsed);
-    printf("ht.nNumOfElements: %d\n", ht->nNumOfElements);
-    printf("ht.nTableSize: %d\n", ht->nTableSize);
+    printf("mem free: %dM\n",MMSG(shared_free)/1024/1024);
 }
