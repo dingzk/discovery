@@ -26,6 +26,8 @@ include_directories(${PROJECT_SOURCE_DIR}/storage/allocator)
 include_directories(${PROJECT_SOURCE_DIR}/storage/allocator/alloc)
 include_directories(${PROJECT_SOURCE_DIR}/serializer)
 include_directories(${PROJECT_SOURCE_DIR}/compressor)
+include_directories(${PROJECT_SOURCE_DIR}/common)
+include_directories(${PROJECT_SOURCE_DIR}/http)
 
 # 自动发现目录下的源码
 #AUX_SOURCE_DIRECTORY(. RPC_SOURCE)
@@ -33,6 +35,9 @@ include_directories(${PROJECT_SOURCE_DIR}/compressor)
 file(GLOB RPC_SOURCE_STORAGE "storage/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR "storage/allocator/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "storage/allocator/alloc/*.c")
+file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/*.c")
+file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/*.cpp")
+file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/events/*.cpp")
 
 #开启后,默认生成的为动态库
 #SET(BUILD_SHARED_LIBS ON)
