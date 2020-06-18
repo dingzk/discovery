@@ -94,8 +94,8 @@ static bool set_socket_block(int sock) {
 }
 
 static int create_socket() {
-    int sock_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_ < 0) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
         return -1;
     }
     socklen_t optVal = 1024 * 1024;
@@ -103,7 +103,7 @@ static int create_socket() {
     setsockopt(sock_, SOL_SOCKET, SO_RCVBUF, static_cast<void *>(&optVal), optLen);
     setsockopt(sock_, SOL_SOCKET, SO_SNDBUF, static_cast<void *>(&optVal), optLen);
 
-    return sock_;
+    return fd;
 }
 
 /*
@@ -113,23 +113,18 @@ static int create_socket() {
           cessfully  (SO_ERROR  is  zero)  or  unsuccessfully  (SO_ERROR is one of the usual error codes listed here,
           explaining the reason for the failure).
  */
-bool Connection::connect_sock(int nonblock) {
+static bool connect_nonb(int fd, struct sockaddr *sa, socklen_t salen, int ms)
+{
     int on = 1;
     int error = 0;
     int ret, n;
-    sock_ = create_socket();
-    if (sock_ <= 0) {
+    if (fd <= 0) {
         return false;
     }
-    if (!set_socket_noblock(sock_)) {
+    if (!set_socket_noblock(fd)) {
         goto ERR;
     }
-    struct sockaddr_in sin;
-    sin.sin_family = AF_INET;
-    inet_pton(AF_INET, peer_.get_host().c_str(), &sin.sin_addr);
-    sin.sin_port = htons(peer_.get_port());
-
-    if ((ret = connect(sock_, (const struct sockaddr *) &sin, sizeof(sin))) == 0) {
+    if ((ret = connect(fd, sa, salen) == 0) {
         goto DONE;
     } else if (ret < 0) {
         if (errno != EINPROGRESS) {
@@ -142,7 +137,7 @@ bool Connection::connect_sock(int nonblock) {
     pfds[0].events = POLLOUT;
     pfds[0].revents = 0;
 
-    if ((n = poll(pfds, 1, peer_.get_conn_timeo())) == 0) {
+    if ((n = poll(pfds, 1, ms)) == 0) {
         goto ERR;
     } else if (n < 0) {
         if (errno != EINTR) {
@@ -159,15 +154,55 @@ bool Connection::connect_sock(int nonblock) {
         goto ERR;
     }
 DONE:
-    if (!nonblock) {
-        set_socket_block(sock_);
-    }
     setsockopt(sock_, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
     setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
     return true;
 ERR:
-    close_sock();
+    close(fd);
     return false;
+}
+
+bool Connection::connect_sock(int nonblock) {
+    struct addrinfo hits, *res, *res0;
+    int error;
+
+    char c_port[10] = {0};
+    sprintf(c_port, "%d", peer_.get_port());
+
+    memset(&hits, 0, sizeof(hits));
+    hits.ai_flags =
+#ifdef AI_NUMERICSERV
+            AI_NUMERICSERV |
+#endif
+            0;
+    hits.ai_family = AF_INET;
+    hits.ai_socktype = SOCK_STREAM;
+    error = getaddrinfo(peer_.get_host().c_str(), c_port, &hits, &res0);
+    if (error) {
+//        fprintf(stderr, "getaddrinfo error %s", gai_strerror(error));
+        return false;
+    }
+    for (res = res0; res; res = res->ai_next) {
+        sock_ = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sock_ < 0) {
+            continue;
+        }
+        if (!connect_nonb(sock_, res->ai_addr, res->ai_addrlen, peer_.get_conn_timeo())) {
+            sock_ = -1;
+            continue;
+        }
+        break;
+    }
+    freeaddrinfo(res0);
+
+    if (sock_ <= 0) {
+        return false;
+    }
+    if (!nonblock) {
+        set_socket_block(sock_);
+    }
+
+    return true;
 }
 
 bool Connection::is_valid() {

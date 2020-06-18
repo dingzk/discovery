@@ -6,9 +6,10 @@
 #include <map>
 #include <mutex>
 
-#include "connectionpool.h"
-#include "url.h"
 #include "common/threadonce.h"
+#include "connectionpool.h"
+#include "events/epoll.h"
+#include "url.h"
 
 static const auto kPMask = 0xfffffffffff00000;
 static const auto kSMask = 0x000fffff;
@@ -22,44 +23,61 @@ const int kDefaultWaitTime = 10; //ms
 class Request {
 public:
     URL *Url;
-    uint64_t request_id;
-    std::string method;
-    int timeout;
-    std::string identify;
     Connection *conn;
+    uint64_t request_id;
+    int timeout;
+    std::string method;
+private:
+    std::string identify;
 public:
-    Request(){};
-    Request(std::string &url, std::string &method = "GET", int timeout = kDefaultTimeout, uint64_t rid);
+    Request(std::string &url, std::string &me = "GET", int t = kDefaultTimeout);
     ~Request();
-    std::string identify();
+    std::string &identify();
+    void http_build_query(std::string &data);
 };
 
 class Response {
 public:
     uint64_t request_id;
+    std::unordered_map<std::string, std::string> header;
     std::string body;
     int ret_code;
+
 public:
-    Response() {};
+    bool read_header(int sock, std::string &raw_header);
+    bool parse_header(std::string &raw_header);
+    bool read_body(int sock, std::string &raw_body);
+    bool parse_body(std::string &raw_body);
+
+private:
+    std::string result;
+
 };
 
 class Http {
 private:
     std::mutex pool_lock{};
     std::mutex buffer_lock{};
-    std::map<uint64_t, Request> requests{};
-    std::unordered_map<uint64_t, Response> responses{};
+    std::map<uint64_t, Request *> requests{};
+    std::unordered_map<uint64_t, Response *> responses{};
+    std::unordered_map<std::string, std::shared_ptr<ConnectionPool>> pool_map{};
     ThreadOnce<Epoll> event_once;
+    typedef struct {
+        uint64_t request_id;
+        Http *http;
+    } ID_MAP;
+    std::unordered_map<uint64_t, ID_MAP *> id_map{};
 private:
-    int add_pool(Request &r);
-    std::shared_ptr<ConnectionPool> select_pool(Request &r);
+
+    int add_pool(Request *rhs);
+    std::shared_ptr<ConnectionPool> select_pool(Request *rhs);
     static void on_read(int sock, short event, void *arg);
-    bool set_read_buffer(uint64_t request_id, std::string &data);
-    Response & get_read_buffer(uint64_t request_id);
+    bool set_read_buffer(uint64_t request_id, Response *rhs);
+    Response* get_read_buffer(uint64_t request_id);
 
 public:
     bool add_url(std::string &url, std::string &method, int timeout);
-    std::map<uint64_t, Response> do_call(std::map<uint64_t, Response> &resp);
+    int do_call(std::map<uint64_t, Response> &resp);
     Http();
     ~Http();
 

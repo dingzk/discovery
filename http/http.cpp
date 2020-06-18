@@ -2,10 +2,8 @@
 // Created by zhenkai on 2020/6/16.
 //
 
-#include "http.h"
 #include <iostream>
-#include "events/epoll.h"
-
+#include <time.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <csignal>
@@ -13,6 +11,9 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <algorithm>
+#include <exception>
+
+#include "http.h"
 
 static uint64_t generate_request_id()
 {
@@ -22,12 +23,11 @@ static uint64_t generate_request_id()
     return (tn.tv_nsec & kPMask) | (id_offset++ & kSMask);
 }
 
-Request::Request(std::string &url, std::string &m, int t, uint64_t rid) : request_id(rid), method(m), timeout(t), conn(
-        nullptr)
+Request::Request(std::string &url, std::string &me, int t) : Url(nullptr), conn(nullptr), request_id(generate_request_id()), timeout(t), method(me)
 {
     Url = url_parse(url.c_str());
     if (Url == nullptr) {
-        throw ;
+        throw std::exception("Invalid Parameters url. parse URL error");
     }
     transform(method.begin(), method.end(), method.begin(), ::toupper);
     if (memcmp(method.c_str(), "GET", 3) != 0) {
@@ -38,8 +38,9 @@ Request::Request(std::string &url, std::string &m, int t, uint64_t rid) : reques
 std::string & Request::identify()
 {
     if (identify.empty()) {
-        identify = Url->hostname + ":" + std::to_string(Url->port)
+        identify = Url->hostname + ":" + std::to_string(Url->port);
     }
+
     return identify;
 }
 
@@ -48,22 +49,15 @@ Request::~Request()
     url_free(Url);
 }
 
-static void clear_map_data()
+int Http::add_pool(Request *rhs)
 {
-    requests.clear();
-    requests.rehash(0);
-    responses.clear();
-    responses.rehash(0);
-}
-
-int Http::add_pool(Request &r)
-{
-    std::string &identify = r.identify();
+    std::string &identify = rhs->identify();
     if (identify.size() <= 0) {
         return -1;
     }
-    if (pool_map_.find(identify) == pool_map_.end()) {
-        pool_map_[identify] = std::shared_ptr<motan_channel::ConnectionPool> (new motan_channel::ConnectionPool(r.Url->hostname, r.Url->port, kDefaultPoolSize, kDefaultKeepAliveTimeout, kDefaultConnectTimeout));
+    std::lock_guard<std::mutex> guard(pool_lock);
+    if (pool_map.find(identify) == pool_map.end()) {
+        pool_map[identify] = std::shared_ptr<motan_channel::ConnectionPool> (new (std::nothrow) ConnectionPool(rhs->Url->hostname, rhs->Url->port, kDefaultPoolSize, kDefaultKeepAliveTimeout, kDefaultConnectTimeout));
         return 1;
     }
 
@@ -74,11 +68,11 @@ int Http::add_pool(Request &r)
     return 0;
 }
 
-std::shared_ptr<ConnectionPool> Http::select_pool(Request &r)
+std::shared_ptr<ConnectionPool> Http::select_pool(Request *rhs)
 {
     std::lock_guard<std::mutex> guard(pool_lock);
-    std::string &identify = r.identify();
-    if (pool_map_.find(identify) == pool_map_.end()) {
+    std::string &identify = rhs->identify();
+    if (pool_map.find(identify) == pool_map.end()) {
         return nullptr;
     }
 
@@ -87,39 +81,39 @@ std::shared_ptr<ConnectionPool> Http::select_pool(Request &r)
 
 bool Http::add_url(std::string &url, std::string &method, int timeout)
 {
-    uint64_t request_id = generate_request_id();
-    Request req(url, method, timeout, request_id);
+    Request *req = new (std::nothrow) Request(url, method, timeout);
+    unit64_t request_id = req->request_id;
     requests.insert({request_id, req});
+
     add_pool(req);
+
+    ID_MAP *id_map_p = new (std::nothrow) ID_MAP;
+    id_map_p->request_id = request_id;
+    id_map_p->http = this;
+    id_map.insert({request_id, id_map_p});
 }
 
-static void parse_request_body (std::string &data, Request &req)
+void Request::http_build_query(std::string &data)
 {
     bool isget = false;
-    if (memcmp(req.method.c_str(), "GET") == 0) {
+    if (memcmp(method.c_str(), "GET") == 0) {
         isget = true;
-        data = req.method + " " + req.Url->path + "?" + req.Url->query + " HTTP/1.1" + "\r\n";
+        data = method + " " + Url->path + "?" + Url->query + " HTTP/1.1" + "\r\n";
     } else {
-        data = req.method + " " + req.Url->path + " HTTP/1.1" + "\r\n";
+        data = method + " " + Url->path + " HTTP/1.1" + "\r\n";
     }
-    data += "Host:" + req.Url->hostname + "\r\n";
+    data += "Host:" + Url->hostname + "\r\n";
     data =  "Connection:keep-alive\r\n";
     data =  "User-Agent: wbsearch\r\n";
     data =  "Accept: */*\r\n";
     if (!isget) {
-        data =  "Content-Length:" + std::to_string(strlen(req.Url->query)) + "\r\n";
+        data =  "Content-Length:" + std::to_string(strlen(Url->query)) + "\r\n";
         data =  "Content-Type: application/x-www-form-urlencoded\r\n";
     }
     data += "\r\n";
     if (!isget) {
-        data += req.Url->query;
+        data += Url->query;
     }
-
-}
-
-static void parse_response_body (std::string &data, Response &resp)
-{
-
 }
 
 static void write_sock(int fd, const char * buffer_in, int len)
@@ -145,14 +139,21 @@ static void write_sock(int fd, const char * buffer_in, int len)
     return 0;
 }
 
-void Http::on_read(int sock, short event, void *arg)
+static bool http_read_n(int sock, char *buffer, int len, std::string &eof)
 {
+    if (sock <= 0 || buffer == nullptr) {
+        return;
+    }
+    memset(buffer, 0, len);
     ssize_t read_pos = 0, temp_len = 0;
 
     struct pollfd pfds[1];
     pfds[0].fd = sock;
     pfds[0].events = POLLIN | POLLHUP | POLLERR;
     pfds[0].revents = 0;
+
+    std::string buffer_temp;
+
     while (read_pos < len) {
         if (poll(pfds, 1, kDefaultWaitTime) <= 0) {
             if (errno == EINTR) {
@@ -164,7 +165,7 @@ void Http::on_read(int sock, short event, void *arg)
         if (!(pfds[0].revents & POLLIN)) {
             return false;
         }
-        temp_len = read(sock, receive_buf->buffer_ + receive_buf->write_pos_, len - read_pos);
+        temp_len = read(sock, buffer + read_pos, len - read_pos);
         if (temp_len == 0) {
 //            LOG_ERROR("peer closed socket: {}!", sock);
             return false;
@@ -176,13 +177,98 @@ void Http::on_read(int sock, short event, void *arg)
             return false;
         }
         read_pos += temp_len;
-        receive_buf->write_pos_ += temp_len;
+
+        buffer_temp = buffer;
+        if (eof != nullptr && buffer_temp.find(eof) != std::string::npos) {
+            return true;
+        }
     }
 
     return (read_pos == len);
 }
 
-std::map<uint64_t, Response> Http::do_call(std::map<uint64_t, Response> &resp)
+bool Response::read_header(int sock, std::string &raw_header)
+{
+    result.reserve(1024);
+    char buffer[1024] = {0};
+    int pos = 0;
+    std::string eof = "\r\n\r\n";
+    while (true) {
+        bool flag = http_read_n(sock, buffer, 1023, eof);
+        result += buffer;
+        if ((pos = result.find(eof)) != std::string::npos) {
+            raw_header = result.substr(0, pos);
+            result.erase(0, pos + strlen(eof));
+            return true;
+        }
+        if (!flag) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+bool Response::read_body(int sock, std::string &raw_body)
+{
+    char buffer[1024] = {0};
+    int pos = 0;
+    std::string eof = "\r\n\r\n";
+    if (header.find("Transfer-Encoding") != header.end()) {
+        if (header["Transfer-Encoding"].compare("chunked") == 0) {
+            eof = "\r\n0\r\n\r\n";
+        }
+    }
+//    if (header.find("Connection") != header.end()) {
+//        if (header["Connection"].compare("close") == 0) {
+//            eof = "\r\n\r\n";
+//        }
+//    }
+//    if (header.find("Content-Length") != header.end()) {
+//        eof = "\r\n\r\n";
+//    }
+
+    if ((pos = result.find(eof)) != std::string::npos) {
+        raw_body = result.substr(0, pos);
+        return true;
+    }
+    while (true) {
+        bool flag = http_read_n(sock, buffer, 1023, eof);
+        result += buffer;
+        if ((pos = result.find(eof)) != std::string::npos) {
+            raw_body = result.substr(0, pos);
+            return true;
+        }
+        if (!flag) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+void Http::on_read(int sock, short which, void *arg)
+{
+    if (!(which & EV_READ)) {
+        return;
+    }
+    ID_MAP *id_map_p = (ID_MAP *) arg;
+    uint64_t request_id = id_map_p->request_id;
+    Http * http = id_map_p->http;
+
+    std::string raw_header, raw_body;
+    Response *resptr = new (std::nothrow) Response;
+    resptr->request_id = request_id;
+
+    resptr->read_header(sock, &raw_header);
+    resptr->parse_header(raw_header);
+    resptr->read_body(sock, &raw_body);
+    resptr->parse_body(raw_body);
+
+    http->set_read_buffer(request_id, resptr);
+}
+
+int Http::do_call(std::map<uint64_t, Response> &resp)
 {
     int request_num = requests.size();
     if (request_num <= 0) {
@@ -190,13 +276,15 @@ std::map<uint64_t, Response> Http::do_call(std::map<uint64_t, Response> &resp)
     }
     Event *event_ = event_once.fetch();
     uint64_t request_id;
+    Request *reqptr;
+    Response *resptr;
     struct event_s ev[request_num];
     std::shared_ptr<ConnectionPool> pool_;
     int max_timeout = 0;
     int need_poll_fds = 0;
     for (auto iter = requests.begin(); iter != requests.end(); ++ iter) {
-        Request &req = *iter;
-        pool_ = select_pool(req);
+        reqptr = iter->second;
+        pool_ = select_pool(*req);
         if (pool_ == nullptr) {
             std::cout << "get a null connection pool" << std::endl;
             continue;
@@ -206,7 +294,7 @@ std::map<uint64_t, Response> Http::do_call(std::map<uint64_t, Response> &resp)
             std::cout << "get null connection" << std::endl;
             continue;
         }
-        req.conn = conn;
+        reqptr->conn = conn;
         int fd = conn->get_connect_sock();
 #ifdef DEBUG
         char ipstr[INET_ADDRSTRLEN];
@@ -214,11 +302,11 @@ std::map<uint64_t, Response> Http::do_call(std::map<uint64_t, Response> &resp)
         std::cout << req.identify() <<  " pool_ : " << pool_ << " conn_ : " << conn  << " peer: " << ipstr << " fd: " << fd << std::endl;
 #endif
         std::string header;
-        parse_request_body(header, req);
+        reqptr->http_build_query(header);
         write_sock(fd, header.c_str(), header.size());
 
         // add event
-        event_.set(ev + need_poll_fds, fd, EV_READ, on_read, (void *)this);
+        event_.set(ev + need_poll_fds, fd, EV_READ, on_read, (void *)id_map[request_id]);
         event_.add(ev + need_poll_fds);
         need_poll_fds++;
 
@@ -226,46 +314,50 @@ std::map<uint64_t, Response> Http::do_call(std::map<uint64_t, Response> &resp)
     }
     // epoll
     event_->dispatch(max_timeout);
-
+    auto i = 0;
     for (auto iter = requests.begin(); iter != requests.end(); ++ iter) {
-        Request &req = *iter;
-        uint64_t request_id = req.request_id;
-        pool_ = select_pool(req);
+        reqptr = iter->second;
+        request_id = reqptr->request_id;
+        pool_ = select_pool(reqptr);
         if (pool_ == nullptr) {
             continue;
         }
-        pool_->release(req.conn);
+        pool_->release(reqptr->conn);
         if (need_poll_fds == 0) {
             continue;
         }
         event_->remove(ev + i++);
 
-        resp[request_id] = get_read_buffer(request_id);
+        resptr = get_read_buffer(request_id);
+        if (resptr != nullptr) {
+            resp[request_id] = *resptr;
+            delete resptr;
+        }
+        delete requests[request_id];
+        delete id_map[request_id];
     }
+    requests.clear();
+    id_map.clear();
 
-//    clear_map_data();
-
-    return resp;
+    return need_poll_fds;
 }
 
-bool Http::set_read_buffer(uint64_t request_id, std::string &data)
+bool Http::set_read_buffer(uint64_t request_id, Response *rhs)
 {
     std::lock_guard<std::mutex> guard(buffer_lock);
-    Response resp;
-    parse_response_body(data, resp);
-    responses[request_id] = resp;
+    responses[request_id] = rhs;
 }
 
-Response& Http::get_read_buffer(uint64_t request_id)
+Response* Http::get_read_buffer(uint64_t request_id)
 {
     std::lock_guard<std::mutex> guard(buffer_lock);
     if (responses.find(request_id) == responses.end()) {
         return nullptr;
     }
-    BytesBuffer *ret = responses[request_id];
-    receive_buffers_.erase(request_id);
+    Response *resptr = responses[request_id];
+    responses.erase(request_id);
 
-    return ret;
+    return resptr;
 }
 
 Http::Http()
@@ -275,5 +367,4 @@ Http::Http()
 
 Http::~Http()
 {
-    clear_map_data();
 }
