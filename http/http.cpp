@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <algorithm>
 #include <exception>
+#include <sstream>
 
 #include "http.h"
 
@@ -152,8 +153,6 @@ static bool http_read_n(int sock, char *buffer, int len, std::string &eof)
     pfds[0].events = POLLIN | POLLHUP | POLLERR;
     pfds[0].revents = 0;
 
-    std::string buffer_temp;
-
     while (read_pos < len) {
         if (poll(pfds, 1, kDefaultWaitTime) <= 0) {
             if (errno == EINTR) {
@@ -178,9 +177,11 @@ static bool http_read_n(int sock, char *buffer, int len, std::string &eof)
         }
         read_pos += temp_len;
 
-        buffer_temp = buffer;
-        if (eof != nullptr && buffer_temp.find(eof) != std::string::npos) {
-            return true;
+        if (eof != nullptr) {
+            std::string buffer_temp = buffer;
+            if (buffer_temp.find(eof) != std::string::npos) {
+                return true;
+            }
         }
     }
 
@@ -205,8 +206,45 @@ bool Response::read_header(int sock, std::string &raw_header)
             return false;
         }
     }
+}
 
-    return false;
+static void format_string(std::string &str)
+{
+    int s = str.find_first_not_of(" ");
+    int e = str.find_last_not_of(" ");
+    str = str.substr(s, e - s + 1);
+    transform(str.begin(), str.end(), str.begin(), ::tolower);
+}
+
+bool Response::parse_header(const std::string &raw_header)
+{
+    if (raw_header.empty()) {
+        return false;
+    }
+    const char *eof = "\r\n";
+    const char *split = ":";
+    int pos = 0;
+    if ((pos = raw_header.find(eof)) == std::string::npos) {
+        return false;
+    }
+    // HTTP/1.1 200 OK
+    std::string line = raw_header.substr(0, pos);
+    std::istringstream  iss(line);
+    iss >> protocolVersion >> ret_code >> descr;
+
+    // key:value\r\n
+    int offset = pos + strlen(eof) + 1;
+    while ((pos = raw_header.find(eof, offset)) != std::string::npos) {
+        auto index = raw_header.find_first_of(split, offset, pos - offset);
+        if (index != std::string::npos) {
+            auto name = raw_header.substr(offset, index);
+            auto value = raw_header.substr(index + 1, pos - offset - index + 2);
+            header[format_string(name)] = format_string(value);
+        }
+
+        offset = pos + strlen(eof) + 1;
+    }
+
 }
 
 bool Response::read_body(int sock, std::string &raw_body)
@@ -214,8 +252,8 @@ bool Response::read_body(int sock, std::string &raw_body)
     char buffer[1024] = {0};
     int pos = 0;
     std::string eof = "\r\n\r\n";
-    if (header.find("Transfer-Encoding") != header.end()) {
-        if (header["Transfer-Encoding"].compare("chunked") == 0) {
+    if (header.find("transfer-encoding") != header.end()) {
+        if (header["transfer-encoding"].compare("chunked") == 0) {
             eof = "\r\n0\r\n\r\n";
         }
     }
@@ -244,7 +282,30 @@ bool Response::read_body(int sock, std::string &raw_body)
         }
     }
 
-    return false;
+}
+
+bool Response::parse_body(const std::string &raw_body)
+{
+    const char *eof = "\r\n0\r\n\r\n";
+    const char *crlf = "\r\n";
+    int pos = 0;
+
+    // 3\r\nabc\r\n0\r\n\r\n
+    if ((pos = raw_body.find(eof)) != std::string::npos) {
+        int chunklen = 0;
+        int offset = 0;
+        while ((pos = raw_body.find(crlf, offset)) != 0 && pos != std::string::npos) {
+            chunklen = atoi(raw_body.substr(offset, pos).c_str());
+            body += raw_body.substr(pos + strlen(crlf), chunklen);
+
+            offset = pos + 2 * strlen(crlf) + chunklen;
+        }
+    } else {
+        // abc\r\n\r\n
+        body = raw_body.substr(0, pos);
+    }
+
+    return 0;
 }
 
 void Http::on_read(int sock, short which, void *arg)
