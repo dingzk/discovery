@@ -100,8 +100,8 @@ static int create_socket() {
     }
     socklen_t optVal = 1024 * 1024;
     socklen_t optLen = sizeof(socklen_t);
-    setsockopt(sock_, SOL_SOCKET, SO_RCVBUF, static_cast<void *>(&optVal), optLen);
-    setsockopt(sock_, SOL_SOCKET, SO_SNDBUF, static_cast<void *>(&optVal), optLen);
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, static_cast<void *>(&optVal), optLen);
+    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, static_cast<void *>(&optVal), optLen);
 
     return fd;
 }
@@ -124,7 +124,7 @@ static bool connect_nonb(int fd, struct sockaddr *sa, socklen_t salen, int ms)
     if (!set_socket_noblock(fd)) {
         goto ERR;
     }
-    if ((ret = connect(fd, sa, salen) == 0) {
+    if ((ret = connect(fd, sa, salen)) == 0) {
         goto DONE;
     } else if (ret < 0) {
         if (errno != EINPROGRESS) {
@@ -133,7 +133,7 @@ static bool connect_nonb(int fd, struct sockaddr *sa, socklen_t salen, int ms)
     }
 
     struct pollfd pfds[1];
-    pfds[0].fd = sock_;
+    pfds[0].fd = fd;
     pfds[0].events = POLLOUT;
     pfds[0].revents = 0;
 
@@ -147,15 +147,15 @@ static bool connect_nonb(int fd, struct sockaddr *sa, socklen_t salen, int ms)
 
     if (pfds[0].revents & (POLLOUT)) {
         socklen_t len = sizeof(error);
-        if (getsockopt(sock_, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
             goto ERR;
         }
     } else {
         goto ERR;
     }
 DONE:
-    setsockopt(sock_, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
-    setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
     return true;
 ERR:
     close(fd);

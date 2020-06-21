@@ -10,7 +10,7 @@
 #include <assert.h>
 
 typedef struct _URL {
-    char    *scheme;
+    const char    *scheme;
     char    *hostname;
     char    *path;
     char    *query;
