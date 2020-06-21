@@ -18,28 +18,44 @@ void  test_url(void)
     return;
 }
 
-void test_http_single()
+void test_http_single(Http &http)
 {
-    Http http;
-    http.add_url("https://s.weibo.com", "GET", 1000);
+    http.add_url("http://s.weibo.com", "GET", 1000);
+    http.add_url("http://register.kailash.weibo.com/naming/service?action=lookup&service=for-test&cluster=test.for%2Fservice&sign=3bb444b2aae425d4e31dc04f717134fd", "GET", 1000);
+    http.add_url("http://register.kailash.weibo.com/naming/service?action=lookup&service=unify-search-weibo-com&cluster=com.weibo.search.unify.v2%2Fservice", "GET", 1000);
 
     std::map<uint64_t, Response> resp;
-    http.do_call(&resp);
+    http.do_call(resp);
+
+    std::cout << resp.size() << std::endl;
 
     for (auto i = resp.begin(); i != resp.end(); ++i) {
-        std::cout << "requestid: " << i->first << " resp : " << i->second->ret_code << std::endl;
+        Response &res = i->second;
+        std::unordered_map<std::string, std::string> &header = res.header;
+        std::string &body = res.body;
+        std::cout << "requestid: " << i->first << " code: " << res.ret_code << std::endl;
+
+        for (auto iter = header.begin(); iter != header.end(); ++iter) {
+            std::cout << iter->first << " : " << iter->second << std::endl;
+        }
+
+        std::cout << "requestid: " << i->first << " resp body: " << res.body << std::endl;
     }
 
 }
 
-void test_http_multi()
+void test_http_thread(Http &http)
 {
 
 }
 
 
 int main() {
-    test_http_single();
+    Http http;
+    int i = 10;
+    while (i--) {
+        test_http_single(http);
+    }
 
     return 0;
 }

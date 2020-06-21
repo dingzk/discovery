@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <map>
 #include <mutex>
+#include <memory>
 
 #include "common/threadonce.h"
 #include "connectionpool.h"
@@ -18,7 +19,7 @@ const int kDefaultTimeout = 1000; //ms
 const int kDefaultConnectTimeout = 100; //ms
 const int kDefaultPoolSize = 3;
 const int kDefaultKeepAliveTimeout = 10; //s
-const int kDefaultWaitTime = 10; //ms
+const int kDefaultWaitTime = 100; //ms
 
 class Request {
 public:
@@ -29,10 +30,12 @@ public:
     std::string method;
 private:
     std::string identify;
+    void init(URL *U);
 public:
-    Request(std::string &url, std::string &me = "GET", int t = kDefaultTimeout);
+    Request(std::string &url, std::string me = "GET", int t = kDefaultTimeout);
+    Request(const char *url, const char *me = "GET", int t = kDefaultTimeout);
     ~Request();
-    std::string &identify();
+    std::string &get_identify();
     void http_build_query(std::string &data);
 };
 
@@ -80,6 +83,7 @@ private:
 
 public:
     bool add_url(std::string &url, std::string &method, int timeout);
+    bool add_url(const char *url, const char *method, int timeout);
     int do_call(std::map<uint64_t, Response> &resp);
     Http();
     ~Http();

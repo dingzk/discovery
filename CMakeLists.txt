@@ -28,6 +28,7 @@ include_directories(${PROJECT_SOURCE_DIR}/serializer)
 include_directories(${PROJECT_SOURCE_DIR}/compressor)
 include_directories(${PROJECT_SOURCE_DIR}/common)
 include_directories(${PROJECT_SOURCE_DIR}/http)
+include_directories(${PROJECT_SOURCE_DIR}/http/events)
 
 # 自动发现目录下的源码
 #AUX_SOURCE_DIRECTORY(. RPC_SOURCE)
@@ -35,15 +36,15 @@ include_directories(${PROJECT_SOURCE_DIR}/http)
 file(GLOB RPC_SOURCE_STORAGE "storage/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR "storage/allocator/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "storage/allocator/alloc/*.c")
-file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/*.c")
-file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/*.cpp")
-file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "http/events/*.cpp")
+file(GLOB RPC_SOURCE_COMMON "common/*.cpp")
+file(GLOB RPC_SOURCE_HTTP "http/*.cpp")
+file(GLOB RPC_SOURCE_HTTP_EVENTS "http/events/*.cpp")
 
 #开启后,默认生成的为动态库
 #SET(BUILD_SHARED_LIBS ON)
 
 # 指定生成的类库
-add_library(discovery SHARED ${RPC_SOURCE_STORAGE} ${RPC_SOURCE_ALLOCATOR} ${RPC_SOURCE_ALLOCATOR_ALLOC})
+add_library(discovery SHARED ${RPC_SOURCE_COMMON} ${RPC_SOURCE_STORAGE} ${RPC_SOURCE_ALLOCATOR} ${RPC_SOURCE_ALLOCATOR_ALLOC} ${RPC_SOURCE_HTTP} ${RPC_SOURCE_HTTP_EVENTS})
 
 #指定生成目标
 add_executable(test test/main.c)
