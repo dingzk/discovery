@@ -32,7 +32,7 @@ private:
     std::string identify;
     void init(URL *U);
 public:
-    Request(std::string &url, std::string me = "GET", int t = kDefaultTimeout);
+    Request(std::string &url, const char *me = "GET", int t = kDefaultTimeout);
     Request(const char *url, const char *me = "GET", int t = kDefaultTimeout);
     ~Request();
     std::string &get_identify();
@@ -82,7 +82,7 @@ private:
     Response* get_read_buffer(uint64_t request_id);
 
 public:
-    bool add_url(std::string &url, std::string &method, int timeout);
+    bool add_url(std::string &url, const char *method, int timeout);
     bool add_url(const char *url, const char *method, int timeout);
     int do_call(std::map<uint64_t, Response> &resp);
     Http();

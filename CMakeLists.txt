@@ -39,12 +39,13 @@ file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "storage/allocator/alloc/*.c")
 file(GLOB RPC_SOURCE_COMMON "common/*.cpp")
 file(GLOB RPC_SOURCE_HTTP "http/*.cpp")
 file(GLOB RPC_SOURCE_HTTP_EVENTS "http/events/*.cpp")
+file(GLOB RPC_SOURCE_VINTAGE "vintage/*.cpp")
 
 #开启后,默认生成的为动态库
 #SET(BUILD_SHARED_LIBS ON)
 
 # 指定生成的类库
-add_library(discovery SHARED ${RPC_SOURCE_COMMON} ${RPC_SOURCE_STORAGE} ${RPC_SOURCE_ALLOCATOR} ${RPC_SOURCE_ALLOCATOR_ALLOC} ${RPC_SOURCE_HTTP} ${RPC_SOURCE_HTTP_EVENTS})
+add_library(discovery SHARED ${RPC_SOURCE_COMMON} ${RPC_SOURCE_STORAGE} ${RPC_SOURCE_ALLOCATOR} ${RPC_SOURCE_ALLOCATOR_ALLOC} ${RPC_SOURCE_HTTP} ${RPC_SOURCE_HTTP_EVENTS} ${RPC_SOURCE_VINTAGE} )
 
 #指定生成目标
 add_executable(test test/main.c)
