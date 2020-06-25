@@ -5,17 +5,18 @@
 #ifndef DISCOVERY_CONFIGSERVICE_H
 #define DISCOVERY_CONFIGSERVICE_H
 
-#include <string>
 #include "http/http.h"
+
+#include <string>
 #include <memory>
 
 class ConfigService
 {
 private:
-    std::string host;
-    std::shared_ptr<Http> http;
+    const char *host_;
+    std::shared_ptr<Http> http_;
 public:
-    ConfigService(std::string &h);
+    ConfigService(const char *host);
     std::string lookup(std::string &group, std::string key = "");
     std::string get_group(void);
 };

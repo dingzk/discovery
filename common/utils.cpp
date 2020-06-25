@@ -1,7 +1,3 @@
-//
-// Created by zhachen on 2018/11/15.
-//
-
 #include <cstring>
 #include <netdb.h>
 #include <unistd.h>

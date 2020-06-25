@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 2.8)
 project(discovery)
 
 #使用C++ 11标准
-#set(CMAKE_CXX_STANDARD 11)
+#set( CMAKE_CXX_COMPILER "g++" )
+set(CMAKE_CXX_STANDARD 11)
 
 # C99 标准
 set(CMAKE_C_STANDARD 99)
@@ -25,6 +26,8 @@ include_directories(${PROJECT_SOURCE_DIR}/storage)
 include_directories(${PROJECT_SOURCE_DIR}/storage/allocator)
 include_directories(${PROJECT_SOURCE_DIR}/storage/allocator/alloc)
 include_directories(${PROJECT_SOURCE_DIR}/serializer)
+include_directories(${PROJECT_SOURCE_DIR}/serializer/cJSON)
+include_directories(${PROJECT_SOURCE_DIR}/serializer/MD5)
 include_directories(${PROJECT_SOURCE_DIR}/compressor)
 include_directories(${PROJECT_SOURCE_DIR}/common)
 include_directories(${PROJECT_SOURCE_DIR}/http)
@@ -36,20 +39,33 @@ include_directories(${PROJECT_SOURCE_DIR}/http/events)
 file(GLOB RPC_SOURCE_STORAGE "storage/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR "storage/allocator/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "storage/allocator/alloc/*.c")
+file(GLOB RPC_SOURCE_SERIALIZER_CJSON "serializer/cJSON/*.c")
+file(GLOB RPC_SOURCE_SERIALIZER_MD5 "serializer/MD5/*.c")
 file(GLOB RPC_SOURCE_COMMON "common/*.cpp")
 file(GLOB RPC_SOURCE_HTTP "http/*.cpp")
 file(GLOB RPC_SOURCE_HTTP_EVENTS "http/events/*.cpp")
 file(GLOB RPC_SOURCE_VINTAGE "vintage/*.cpp")
 
+
 #开启后,默认生成的为动态库
 #SET(BUILD_SHARED_LIBS ON)
 
 # 指定生成的类库
-add_library(discovery SHARED ${RPC_SOURCE_COMMON} ${RPC_SOURCE_STORAGE} ${RPC_SOURCE_ALLOCATOR} ${RPC_SOURCE_ALLOCATOR_ALLOC} ${RPC_SOURCE_HTTP} ${RPC_SOURCE_HTTP_EVENTS} ${RPC_SOURCE_VINTAGE} )
+add_library(discovery SHARED
+            ${RPC_SOURCE_COMMON}
+            ${RPC_SOURCE_STORAGE}
+            ${RPC_SOURCE_ALLOCATOR}
+            ${RPC_SOURCE_ALLOCATOR_ALLOC}
+            ${RPC_SOURCE_HTTP}
+            ${RPC_SOURCE_HTTP_EVENTS}
+            ${RPC_SOURCE_VINTAGE}
+            ${RPC_SOURCE_SERIALIZER_CJSON}
+            ${RPC_SOURCE_SERIALIZER_MD5}
+        )
 
 #指定生成目标
-add_executable(test test/main.c)
-TARGET_LINK_LIBRARIES(test discovery)
+add_executable(test test/main.cpp)
+TARGET_LINK_LIBRARIES(test discovery pthread stdc++)
 
 
 # make test

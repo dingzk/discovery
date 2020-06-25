@@ -5,11 +5,9 @@
 #include <iostream>
 #include <ctime>
 #include <cstring>
-#include <sys/socket.h>
 #include <csignal>
 #include <poll.h>
 #include <unistd.h>
-#include <netinet/in.h>
 #include <algorithm>
 #include <exception>
 #include <sstream>

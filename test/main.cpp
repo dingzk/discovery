@@ -1,9 +1,10 @@
 #include "storage/storage.h"
+#include "vintage/configservice.h"
 #include <stdio.h>
 #include <string.h>
 
 
-int main(int argc, char **argv)
+int main1(int argc, char **argv)
 {
     char *err = NULL;
     HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
@@ -53,6 +54,17 @@ int main(int argc, char **argv)
     get_mem_info();
 
     hash_destory(ht);
+
+    return 0;
+}
+
+
+int main(int argc, char **argv)
+{
+    ConfigService configservice("register.kailash.weibo.com");
+
+    std::string group("ks");
+    configservice.lookup(group);
 
     return 0;
 }

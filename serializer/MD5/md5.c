@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "md5.h"
  
 // Constants are the integer part of the sines of integers (in radians) * 2^32.
 const uint32_t k[64] = {
@@ -36,7 +37,7 @@ const uint32_t r[] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22
 // leftrotate function definition
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
  
-void to_bytes(uint32_t val, uint8_t *bytes)
+static void to_bytes(uint32_t val, uint8_t *bytes)
 {
     bytes[0] = (uint8_t) val;
     bytes[1] = (uint8_t) (val >> 8);
@@ -44,7 +45,7 @@ void to_bytes(uint32_t val, uint8_t *bytes)
     bytes[3] = (uint8_t) (val >> 24);
 }
  
-uint32_t to_int32(const uint8_t *bytes)
+static uint32_t to_int32(const uint8_t *bytes)
 {
     return (uint32_t) bytes[0]
         | ((uint32_t) bytes[1] << 8)
@@ -52,7 +53,7 @@ uint32_t to_int32(const uint8_t *bytes)
         | ((uint32_t) bytes[3] << 24);
 }
  
-void md5(const uint8_t *initial_msg, size_t initial_len, uint8_t *digest) {
+static void md5(const uint8_t *initial_msg, size_t initial_len, uint8_t *digest) {
  
     // These vars will contain the hash
     uint32_t h0, h1, h2, h3;
@@ -159,36 +160,4 @@ void gen_md5(const char *msg, char *res) {
         sprintf(tmp, "%2.2x", result[i]);
         strcat(res, tmp);
     }
-}
- 
-int main(int argc, char **argv) {
-    char *msg;
-    size_t len;
-    int i;
-    uint8_t result[16];
- 
-    if (argc < 2) {
-        printf("usage: %s 'string'\n", argv[0]);
-        return 1;
-    }
-    msg = argv[1];
- 
-    len = strlen(msg);
- 
-    // benchmark
-    for (i = 0; i < 1000000; i++) {
-        md5((uint8_t*)msg, len, result);
-    }
- 
-    // display result
-    for (i = 0; i < 16; i++)
-        printf("%2.2x", result[i]);
-    puts("\n");
-
-    char res[33] = {0};
-    gen_md5(msg, res);
-    printf("%s\n", res);
-    puts("\n");
- 
-    return 0;
 }
