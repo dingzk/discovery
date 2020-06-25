@@ -9,16 +9,19 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 class ConfigService
 {
 private:
     const char *host_;
     std::shared_ptr<Http> http_;
+
 public:
     ConfigService(const char *host);
-    std::string lookup(std::string &group, std::string key = "");
-    std::string get_group(void);
+    bool lookup(const char *group, std::string &result);
+    bool lookup(const char *group, const char *key, std::string &result);
+    bool get_group(std::vector<std::string> &result);
 };
 
 

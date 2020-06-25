@@ -1,5 +1,6 @@
 #include "storage/storage.h"
 #include "vintage/configservice.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -63,8 +64,10 @@ int main(int argc, char **argv)
 {
     ConfigService configservice("register.kailash.weibo.com");
 
-    std::string group("ks");
-    configservice.lookup(group);
+    std::string result;
+    configservice.lookup("ks", result);
+
+    std::cout << result << std::endl;
 
     return 0;
 }
