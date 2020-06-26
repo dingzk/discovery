@@ -1,12 +1,12 @@
 #include "storage/storage.h"
 #include "vintage/configservice.h"
 #include "vintage/namingservice.h"
+#include "serializer/cJSON/cJSON.h"
 
 #include <stdio.h>
 #include <string.h>
 
-
-int main1(int argc, char **argv)
+int hashtable_test()
 {
     char *err = NULL;
     HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
@@ -35,7 +35,7 @@ int main1(int argc, char **argv)
 
     hash_dump(ht);
 
-    Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
+//    Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
 
     Bucket *b = hash_find_bucket(ht, key1, strlen(key1));
     if (b) {
@@ -60,27 +60,29 @@ int main1(int argc, char **argv)
     return 0;
 }
 
-
-int main(int argc, char **argv)
+int config_test()
 {
     ConfigService configservice("register.kailash.weibo.com");
+    std::string result;
+    configservice.lookup("ks", result);
+    std::cout << result << std::endl;
 
+    std::string value;
+    configservice.lookup("ks", "test", value);
+    std::cout << value << std::endl;
+
+    std::vector<std::string> groups;
+    configservice.get_group(groups);
+    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
+        std::cout << *iter << std::endl;
+    }
+
+    return 0;
+}
+
+int naming_test()
+{
     NamingService namingservice("register.kailash.weibo.com");
-
-//    std::string result;
-//    configservice.lookup("ks", result);
-//    std::cout << result << std::endl;
-//
-//    std::string value;
-//    configservice.lookup("ks", "test", value);
-//    std::cout << value << std::endl;
-//
-//    std::vector<std::string> groups;
-//    configservice.get_group(groups);
-//    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
-//        std::cout << *iter << std::endl;
-//    }
-
 
     std::string result2;
     namingservice.lookup("for-test", "test.for", result2);
@@ -96,28 +98,52 @@ int main(int argc, char **argv)
         std::cout << *iter << std::endl;
     }
 
-
     return 0;
 }
 
+int main(int argc, char **argv)
+{
+    char *err = NULL;
+    HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
+    if (!ht) {
+        printf("error %s", err);
+        return 1;
+    }
+    ConfigService configservice("register.kailash.weibo.com");
+    std::vector<std::string> groups;
+    configservice.get_group(groups);
 
+    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
+        std::string result;
+        bool ret = configservice.lookup(iter->c_str(), result);
+        if (!ret) {
+            continue;
+        }
+        cJSON* root = cJSON_Parse(result.c_str());
+        if (root == nullptr) {
+            continue;
+        }
+        cJSON *groupid_json = cJSON_GetObjectItemCaseSensitive(root, "groupId");
+        cJSON *sign_json = cJSON_GetObjectItemCaseSensitive(root, "sign");
+        cJSON *nodes_json = cJSON_GetObjectItem(root, "nodes");
+        char *value = cJSON_PrintUnformatted(nodes_json);
 
-//cJSON *groupid_c = cJSON_GetObjectItem(body_c, "groupId");
-//const char *groupid = cJSON_GetStringValue(groupid_c);
-//
-//cJSON *sign_c = cJSON_GetObjectItem(body_c, "sign");
-//const char *sign = cJSON_GetStringValue(sign_c);
-////char *sign = cJSON_Print(sign_c); // free(sign);
-//
-//cJSON *nodes_c = cJSON_GetObjectItem(body_c, "nodes");
-//
-//char *nodes = cJSON_Print(nodes_c);
-//result = nodes;
-//free(nodes);
-//
-//cJSON *element = NULL;
-//cJSON_ArrayForEach(element, nodes_c) {
-//cJSON *key_c = cJSON_GetObjectItem(element, "key");
-//cJSON *value_c = cJSON_GetObjectItem(element, "value");
-//std::cout << "key: " << cJSON_GetStringValue(key_c) << " value: " << cJSON_GetStringValue(value_c) << std::endl;
-//}
+        char *key = cJSON_GetStringValue(groupid_json);
+        char *sign = cJSON_GetStringValue(sign_json);
+
+        hash_add_or_update_bucket(ht, sign, strlen(sign), key, strlen(key), value, strlen(value));
+
+        free(value);
+    }
+
+    hash_dump(ht);
+
+    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
+        Bucket *b = hash_find_bucket(ht, iter->c_str(), strlen(iter->c_str()));
+        if (b) {
+            printf("find bucket.val %s, bucket.val.len = %d\n", strndup(b->val->data, b->val->len), b->val->len);
+        }
+    }
+
+    return 0;
+}

@@ -44,7 +44,7 @@ bool ConfigService::lookup(const char *group, const char *key, std::string &resu
         }
         cJSON* body_json = cJSON_GetObjectItem(root, "body");
 
-        char *body = cJSON_Print(body_json);
+        char *body = cJSON_PrintUnformatted(body_json);
         result = body;
         free(body);
 

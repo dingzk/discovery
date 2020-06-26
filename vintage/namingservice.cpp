@@ -57,7 +57,7 @@ bool NamingService::lookupforupdate(const char *service, const char *cluster, co
         }
         cJSON* body_json = cJSON_GetObjectItem(root, "body");
 
-        char *body = cJSON_Print(body_json);
+        char *body = cJSON_PrintUnformatted(body_json);
         result = body;
         free(body);
 
