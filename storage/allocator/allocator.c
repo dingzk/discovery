@@ -74,7 +74,14 @@ int shared_alloc_startup(size_t requested_size)
         free(shared_segments);
         return ALLOC_FAILURE;
     }
+    // copy real struct value to shared memory
     memcpy(MMSG(shared_segments), shared_segments,  segment_array_size);
+
+    // copy pointer to shared memory
+    int i = 0;
+    for (i = 0; i < shared_segments_count; i++) {
+        MMSG(shared_segments)[i] = (char *)MMSG(shared_segments) + sizeof(void *) * shared_segments_count + i * SMH(segment_type_size)();
+    }
 
     MMSG(wasted_shared_memory) = 0;
     MMSG(memory_exhausted) = 0;

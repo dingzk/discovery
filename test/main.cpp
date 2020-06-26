@@ -17,7 +17,7 @@ int hashtable_test()
 
     char *sign1 = "c21f969b5f03d33d43e04f8f136e7682";
     char *key1 = "test1";
-    char *value1 = "value1";
+    char *value1 = "[{\\\"key\\\":\\\"elk\\\",\\\"value\\\":\\\"2771122141,2008783705,1838150241,2367539940,1287349807, 2447986777\\\"},{\\\"key\\\":\\\"degrade.level\\\",\\\"value\\\":\\\"0\\\"}]";
 
     char *sign2 = "c21f969b5f03d33d43e04f8f136e7683";
     char *key2 = "test2";
@@ -103,6 +103,8 @@ int naming_test()
 
 int main(int argc, char **argv)
 {
+//    return hashtable_test();
+
     char *err = NULL;
     HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
     if (!ht) {
@@ -144,6 +146,12 @@ int main(int argc, char **argv)
             printf("find bucket.val %s, bucket.val.len = %d\n", strndup(b->val->data, b->val->len), b->val->len);
         }
     }
+
+    get_mem_info();
+
+    hash_dump(ht);
+
+    hash_destory(ht);
 
     return 0;
 }
