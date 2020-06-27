@@ -1,7 +1,7 @@
 #include "storage/storage.h"
 #include "vintage/configservice.h"
 #include "vintage/namingservice.h"
-#include "serializer/cJSON/cJSON.h"
+//#include "serializer/cJSON/cJSON.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -60,27 +60,6 @@ int hashtable_test()
     return 0;
 }
 
-int naming_test()
-{
-    NamingService namingservice("register.kailash.weibo.com");
-
-    std::string result2;
-    namingservice.lookup("for-test", "test.for", result2);
-    std::cout << result2 << std::endl;
-
-    std::string val;
-    namingservice.lookupforupdate("for-test", "test.for", "3bb444b2aae425d4e31dc04f717134fd", val);
-    std::cout << val << std::endl;
-
-    std::vector<std::string> services;
-    namingservice.get_service(services);
-    for (auto iter = services.begin(); iter != services.end(); ++ iter) {
-        std::cout << *iter << std::endl;
-    }
-
-    return 0;
-}
-
 int main(int argc, char **argv)
 {
     char *err = NULL;
@@ -95,15 +74,34 @@ int main(int argc, char **argv)
 
     configservice.watch();
 
-    sleep(10);
 
-    std::string group;
-    configservice.find("ks", group);
-    std::cout << group << std::endl;
+    NamingService namingservice("register.kailash.weibo.com", ht);
 
-    std::string value;
-    configservice.find("ks", "elk_whitelist", value);
-    std::cout << value << std::endl;
+    namingservice.add_watch("for-test", "test.for");
+
+    namingservice.watch();
+
+
+//    while (true) {
+//        std::string group;
+//        configservice.find("ks", group);
+//        std::cout << group << std::endl;
+//
+//        std::string value;
+//        configservice.find("ks", "elk_whitelist", value);
+//        std::cout << value << std::endl;
+//
+//        sleep(1);
+//    }
+
+    while (true) {
+        std::string value;
+        namingservice.find("for-test", "test.for", value);
+        std::cout << value << std::endl;
+
+        sleep(1);
+    }
+
 
     get_mem_info();
 

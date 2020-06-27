@@ -171,6 +171,7 @@ bool ConfigService::find(const char *group, std::string &result)
     Bucket *b = hash_find_bucket(ht_, group, strlen(group));
     if (b) {
         result.assign(b->val->data, b->val->len);
+        return true;
     }
 
     return false;

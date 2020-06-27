@@ -24,7 +24,7 @@ private:
 
 public:
     ConfigService(const char *host, HashTable *ht);
-    bool fetch();
+    bool fetch(void);
     bool watch(void);
     bool find(const char *group, std::string &result);
     bool find(const char *group, const char *key, std::string &result);
