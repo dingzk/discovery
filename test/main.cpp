@@ -60,26 +60,6 @@ int hashtable_test()
     return 0;
 }
 
-int config_test()
-{
-    ConfigService configservice("register.kailash.weibo.com");
-    std::string result;
-    configservice.lookup("ks", result);
-    std::cout << result << std::endl;
-
-    std::string value;
-    configservice.lookup("ks", "test", value);
-    std::cout << value << std::endl;
-
-    std::vector<std::string> groups;
-    configservice.get_group(groups);
-    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
-        std::cout << *iter << std::endl;
-    }
-
-    return 0;
-}
-
 int naming_test()
 {
     NamingService namingservice("register.kailash.weibo.com");
@@ -103,53 +83,31 @@ int naming_test()
 
 int main(int argc, char **argv)
 {
-//    return hashtable_test();
-
     char *err = NULL;
     HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
     if (!ht) {
         printf("error %s", err);
         return 1;
     }
-    ConfigService configservice("register.kailash.weibo.com");
-    std::vector<std::string> groups;
-    configservice.get_group(groups);
-
-    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
-        std::string result;
-        bool ret = configservice.lookup(iter->c_str(), result);
-        if (!ret) {
-            continue;
-        }
-        cJSON* root = cJSON_Parse(result.c_str());
-        if (root == nullptr) {
-            continue;
-        }
-        cJSON *groupid_json = cJSON_GetObjectItemCaseSensitive(root, "groupId");
-        cJSON *sign_json = cJSON_GetObjectItemCaseSensitive(root, "sign");
-        cJSON *nodes_json = cJSON_GetObjectItem(root, "nodes");
-        char *value = cJSON_PrintUnformatted(nodes_json);
-
-        char *key = cJSON_GetStringValue(groupid_json);
-        char *sign = cJSON_GetStringValue(sign_json);
-
-        hash_add_or_update_bucket(ht, sign, strlen(sign), key, strlen(key), value, strlen(value));
-
-        free(value);
-    }
+    ConfigService configservice("register.kailash.weibo.com", ht);
 
     hash_dump(ht);
 
-    for (auto iter = groups.begin(); iter != groups.end(); ++ iter) {
-        Bucket *b = hash_find_bucket(ht, iter->c_str(), strlen(iter->c_str()));
-        if (b) {
-            printf("find bucket.val %s, bucket.val.len = %d\n", strndup(b->val->data, b->val->len), b->val->len);
-        }
-    }
+    configservice.watch();
+
+    sleep(10);
+
+    std::string group;
+    configservice.find("ks", group);
+    std::cout << group << std::endl;
+
+    std::string value;
+    configservice.find("ks", "elk_whitelist", value);
+    std::cout << value << std::endl;
 
     get_mem_info();
 
-    hash_dump(ht);
+//    hash_dump(ht);
 
     hash_destory(ht);
 
