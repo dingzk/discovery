@@ -148,6 +148,8 @@ bool NamingService::fetch()
         char *value = cJSON_PrintUnformatted(nodes_json);
         char *sign = cJSON_GetStringValue(sign_json);
         if (!sign) {
+            free(value);
+            cJSON_Delete(root);
             continue;
         }
         std::cout << "lookup: sign" << sign << std::endl;
@@ -201,6 +203,11 @@ bool NamingService::fetchforupdate()
             char *value = cJSON_PrintUnformatted(nodes_json);
 
             char *sign = cJSON_GetStringValue(sign_json);
+            if (!sign) {
+                free(value);
+                cJSON_Delete(root);
+                continue;
+            }
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
 
             free(value);
