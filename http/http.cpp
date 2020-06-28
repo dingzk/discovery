@@ -91,6 +91,8 @@ std::shared_ptr<ConnectionPool> Http::select_pool(Request *rhs)
 
 bool Http::add_url(std::string &url, const char *method, int timeout)
 {
+    std::lock_guard<std::mutex> guard(request_lock);
+
     Request *req = new (std::nothrow) Request(url, method, timeout);
     uint64_t request_id = req->request_id;
     requests.insert({request_id, req});
@@ -105,6 +107,8 @@ bool Http::add_url(std::string &url, const char *method, int timeout)
 
 bool Http::add_url(const char *url, const char *method, int timeout)
 {
+    std::lock_guard<std::mutex> guard(request_lock);
+
     Request *req = new (std::nothrow) Request(url, method, timeout);
     uint64_t request_id = req->request_id;
     requests.insert({request_id, req});

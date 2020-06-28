@@ -64,6 +64,7 @@ class Http {
 private:
     std::mutex pool_lock{};
     std::mutex buffer_lock{};
+    std::mutex request_lock{};
     std::map<uint64_t, Request *> requests{};
     std::unordered_map<uint64_t, Response *> responses{};
     std::unordered_map<std::string, std::shared_ptr<ConnectionPool>> pool_map{};

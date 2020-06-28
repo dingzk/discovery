@@ -18,6 +18,7 @@ private:
     const char *host_;
     std::shared_ptr<Http> http_;
     HashTable *ht_;
+    std::mutex lock_{};
     bool lookup(const char *group, std::string &result);
     bool lookup(const char *group, const char *key, std::string &result);
     bool get_group(std::vector<std::string> &result);

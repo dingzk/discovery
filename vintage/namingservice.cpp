@@ -70,6 +70,7 @@ bool NamingService::lookupforupdate(const char *service, const char *cluster, co
 
 bool NamingService::get_service(std::vector<std::string> &result)
 {
+    std::lock_guard<std::mutex> guard(lock_);
     std::string url("http://");
     url += host_;
     url += kNamingAdminPath;

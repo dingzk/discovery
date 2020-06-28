@@ -101,6 +101,7 @@ bool ConfigService::get_group(std::vector<std::string> &result)
 
 bool ConfigService::fetch()
 {
+    std::lock_guard<std::mutex> guard(lock_);
     std::vector<std::string> groups;
     bool ret = get_group(groups);
     if (!ret || groups.empty()) {
