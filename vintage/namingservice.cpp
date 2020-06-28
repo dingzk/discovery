@@ -3,9 +3,10 @@
 //
 
 #include "vintage/namingservice.h"
-#include "serializer/cJSON/cJSON.h"
 #include "serializer/MD5/md5.h"
-
+#include "serializer/rapidjson/document.h"
+#include "serializer/rapidjson/writer.h"
+#include "serializer/rapidjson/stringbuffer.h"
 
 static const char* kNamingServicePath = "/naming/service";
 static const char* kNamingAdminPath = "/naming/admin";
@@ -48,25 +49,19 @@ bool NamingService::lookupforupdate(const char *service, const char *cluster, co
         return false;
     }
     if (resp.begin()->second.ret_code == 200) {
-        cJSON* root = cJSON_Parse(resp.begin()->second.body.c_str());
-        if (root == nullptr) {
+        rapidjson::Document root;
+        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
+            std::cout << "parse json error " << std::endl;
             return false;
         }
-        cJSON* code_c = cJSON_GetObjectItem(root, "code");
-        char *code = cJSON_GetStringValue(code_c);
-        if (atoi(code) != 200) {
-            cJSON_Delete(root);
+        assert(root.HasMember("code"));
+        if (atoi(root["code"].GetString()) != 200) {
             return false;
         }
-        cJSON* body_json = cJSON_GetObjectItem(root, "body");
-
-        char *body = cJSON_PrintUnformatted(body_json);
-        result = body;
-        free(body);
-
-        cJSON_Delete(root);
+        result.assign(root["body"].GetString());
         return true;
     } else if (resp.begin()->second.ret_code == 304) {
+        result.clear();
         return true;
     }
 
@@ -87,24 +82,23 @@ bool NamingService::get_service(std::vector<std::string> &result)
         return false;
     }
     if (resp.begin()->second.ret_code == 200) {
-        cJSON* root = cJSON_Parse(resp.begin()->second.body.c_str());
-        if (root == nullptr) {
+        rapidjson::Document root;
+        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
+            std::cout << "parse json error " << std::endl;
             return false;
         }
-        cJSON* code_c = cJSON_GetObjectItem(root, "code");
-        char *code = cJSON_GetStringValue(code_c);
-        if (atoi(code) != 200) {
-            cJSON_Delete(root);
+        assert(root.HasMember("code"));
+        if (atoi(root["code"].GetString()) != 200) {
             return false;
         }
-        cJSON* body_json = cJSON_GetObjectItem(root, "body");
-        cJSON *services_json = cJSON_GetObjectItem(body_json, "services");
-
-        cJSON *element = nullptr;
-        cJSON_ArrayForEach(element, services_json) {
-            result.push_back(cJSON_GetStringValue(element));
+        assert(root.HasMember("body"));
+        rapidjson::Document doc;
+        doc.Parse(root["body"].GetString());
+        const rapidjson::Value& v = doc["services"];
+        for (rapidjson::Value::ConstValueIterator itr = v.Begin(); itr != v.End(); ++itr) {
+            const rapidjson::Value &tmp = *itr;
+            result.push_back(tmp["name"].GetString());
         }
-        cJSON_Delete(root);
         return true;
     }
 
@@ -126,45 +120,44 @@ bool NamingService::fetch()
     if (service_clusters.empty()) {
         return false;
     }
+    std::string serv_clu, service, cluster, result;
+    rapidjson::Document root;
     for (auto iter = service_clusters.begin(); iter != service_clusters.end(); ++iter) {
         char key[MAX_KEY_LEN] = {0};
-        std::string serv_clu = iter->c_str();
+        serv_clu = iter->c_str();
         int pos = serv_clu.find_first_of("_");
-        std::string service = serv_clu.substr(0, pos);
-        std::string cluster = serv_clu.substr(pos + 1);
+        service = serv_clu.substr(0, pos);
+        cluster = serv_clu.substr(pos + 1);
 
-        std::string result;
+        result.clear();
         bool ret = lookup(service.c_str(), cluster.c_str(), result);
-        if (!ret) {
+        if (!ret || result.empty()) {
             continue;
         }
-        std::cout << "lookup: " << result << std::endl;
-        cJSON* root = cJSON_Parse(result.c_str());
-        if (root == nullptr) {
+        if (root.Parse(result.c_str()).HasParseError()) {
+            std::cout << "parse json error " << std::endl;
             continue;
         }
-        cJSON *sign_json = cJSON_GetObjectItemCaseSensitive(root, "sign");
-        cJSON *nodes_json = cJSON_GetObjectItem(root, "nodes");
-        char *value = cJSON_PrintUnformatted(nodes_json);
-        char *sign = cJSON_GetStringValue(sign_json);
-        if (!sign) {
-            free(value);
-            cJSON_Delete(root);
-            continue;
-        }
-        std::cout << "lookup: sign" << sign << std::endl;
+        assert(root.HasMember("sign"));
+        assert(root.HasMember("nodes"));
+        const char *sign = root["sign"].GetString();
+
+        rapidjson::Value v(root["nodes"].GetObject());
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        v.Accept(writer);
+        const char *value = buffer.GetString();
 
         build_key(serv_clu.c_str(), key);
+
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
-            free(value);
-            cJSON_Delete(root);
             continue;
         }
-        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
 
-        free(value);
-        cJSON_Delete(root);
+        std::cout << "lookup : " << value << std::endl;
+
+        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
     }
 
     return true;
@@ -176,43 +169,45 @@ bool NamingService::fetchforupdate()
     if (service_clusters.empty()) {
         return false;
     }
+    std::string serv_clu, service, cluster, result;
+    rapidjson::Document root;
     for (auto iter = service_clusters.begin(); iter != service_clusters.end(); ++iter) {
         char key[MAX_KEY_LEN] = {0};
-        std::string serv_clu = iter->c_str();
+        serv_clu = iter->c_str();
         int pos = serv_clu.find_first_of("_");
-        std::string service = serv_clu.substr(0, pos);
-        std::string cluster = serv_clu.substr(pos + 1);
+        service = serv_clu.substr(0, pos);
+        cluster = serv_clu.substr(pos + 1);
 
         build_key(serv_clu.c_str(), key);
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (!b) {
             continue;
         }
-        std::string result;
+        result.clear();
         bool ret = lookupforupdate(service.c_str(), cluster.c_str(), b->sign, result);
-        if (ret && !result.empty()) {
-            cJSON* root = cJSON_Parse(result.c_str());
-            if (root == nullptr) {
-                continue;
-            }
-
-            std::cout << "lookupforupdate:" << result << std::endl;
-
-            cJSON *sign_json = cJSON_GetObjectItemCaseSensitive(root, "sign");
-            cJSON *nodes_json = cJSON_GetObjectItem(root, "nodes");
-            char *value = cJSON_PrintUnformatted(nodes_json);
-
-            char *sign = cJSON_GetStringValue(sign_json);
-            if (!sign) {
-                free(value);
-                cJSON_Delete(root);
-                continue;
-            }
-            hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
-
-            free(value);
-            cJSON_Delete(root);
+        if (!ret || result.empty()) {
+            std::cout << "not modified!" << std::endl;
+            continue;
         }
+        if (root.Parse(result.c_str()).HasParseError()) {
+            std::cout << "parse json error!" << std::endl;
+            continue;
+        }
+        assert(root.HasMember("sign"));
+        assert(root.HasMember("nodes"));
+        const char *sign = root["sign"].GetString();
+
+        rapidjson::Value v(root["nodes"].GetObject());
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        v.Accept(writer);
+        const char *value = buffer.GetString();
+
+        std::cout << "lookupforupdate : " << value << std::endl;
+
+        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
+
+        return true;
     }
 
     return true;
@@ -252,9 +247,9 @@ bool NamingService::watch()
     return true;
 }
 
-
 bool NamingService::find(const char *service, const char *cluster, std::string &result)
 {
+    result.clear();
     if (service == nullptr || cluster == nullptr) {
         return false;
     }

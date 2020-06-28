@@ -165,6 +165,7 @@ bool ConfigService::watch()
 
 bool ConfigService::find(const char *group, std::string &result)
 {
+    result.clear();
     if (group == nullptr) {
         return false;
     }
@@ -179,6 +180,7 @@ bool ConfigService::find(const char *group, std::string &result)
 
 bool ConfigService::find(const char *group, const char *key, std::string &result)
 {
+    result.clear();
     if (group == nullptr || key == nullptr) {
         return false;
     }

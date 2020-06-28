@@ -101,12 +101,12 @@ int Epoll::dispatch(long timeout) {
     struct epoll_event m_ay_events[max_events];
     need_poll_fds = num_events;
     struct event_s *ev;
-    long time_start = motan_util::get_current_time_ms();
+    long time_start = get_current_time_ms();
     long timeout_start = timeout;
     if (epfd < 0) {
         return -1;
     }
-    while (need_poll_fds > 0 && (timeout = time_start + timeout_start - motan_util::get_current_time_ms()) > 0) {
+    while (need_poll_fds > 0 && (timeout = time_start + timeout_start - get_current_time_ms()) > 0) {
         nfds = epoll_wait(epfd, m_ay_events, need_poll_fds, timeout);
         if (nfds < 0) {
             if (errno != EINTR)

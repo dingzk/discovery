@@ -4,19 +4,19 @@
 #include <arpa/inet.h>
 #include "common/utils.h"
 
-long motan_util::get_current_time_ms() {
+long get_current_time_ms() {
     timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-long motan_util::get_current_time_us() {
+long get_current_time_us() {
     timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec * 1000000 + tv.tv_usec;
 }
 
-std::string motan_util::get_local_time() {
+std::string get_local_time() {
     time_t now;
     now = time(nullptr);
     struct tm *local;
@@ -27,7 +27,7 @@ std::string motan_util::get_local_time() {
     return ret;
 }
 
-std::string motan_util::get_local_ip() {
+std::string get_local_ip() {
     char hostname[256];
     char ip[256];
     auto error = gethostname(hostname, sizeof(hostname));
@@ -42,6 +42,50 @@ std::string motan_util::get_local_ip() {
     return ip;
 }
 
-const char *motan_util::get_last_substring(const std::string &str, const std::string &sep) {
+const char *get_last_substring(const std::string &str, const std::string &sep) {
     return str.data() + str.find_last_of(sep) + 1;
 }
+
+/* {{{ stripslashes
+ *
+ * be careful, this edits the string in-place */
+void stripslashes(std::string &str)
+{
+    char *s, *t;
+    size_t l;
+
+    if (str.empty()) {
+        return;
+    }
+    char *temp = strdup(str.c_str());
+    s = temp;
+    t = s;
+    l = str.size();
+
+    while (l > 0) {
+        if (*t == '\\') {
+            t++;                /* skip the slash */
+            l--;
+            if (l > 0) {
+                if (*t == '0') {
+                    *s++='\0';
+                    t++;
+                } else {
+                    *s++ = *t++;    /* preserve the next character */
+                }
+                l--;
+            }
+        } else {
+            *s++ = *t++;
+            l--;
+        }
+    }
+    if (s != t) {
+        *s = '\0';
+    }
+
+    str.assign(temp);
+    free(temp);
+}
+/* }}} */
+

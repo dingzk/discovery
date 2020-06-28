@@ -23,10 +23,11 @@ private:
     std::vector<std::string> service_clusters;
     bool lookup(const char *service, const char *cluster, std::string &result);
     bool lookupforupdate(const char *service, const char *cluster, const char *sign, std::string &result);
-    bool get_service(std::vector<std::string> &result);
+
     void build_key(const char *key, char *build_key);
 
 public:
+    bool get_service(std::vector<std::string> &result);
     NamingService(const char *host, HashTable *ht);
     bool fetch(void);
     bool fetchforupdate(void);
