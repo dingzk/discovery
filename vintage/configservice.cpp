@@ -3,10 +3,7 @@
 //
 
 #include "vintage/configservice.h"
-#include "serializer/rapidjson/document.h"
-#include "serializer/rapidjson/writer.h"
-#include "serializer/rapidjson/stringbuffer.h"
-
+#include "common/json.h"
 #include <pthread.h>
 
 static const char* kConfigServicePath = "/1/config/service";
@@ -39,8 +36,8 @@ bool ConfigService::lookup(const char *group, const char *key, std::string &resu
     }
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
-        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
-            std::cout << "parse json error!" << std::endl;
+        if (!Json::decode(resp.begin()->second.body, root)) {
+            std::cout << "parse json error!" << resp.begin()->second.ret_code << resp.begin()->second.body << std::endl;
             return false;
         }
         assert(root.HasMember("code"));
@@ -48,13 +45,7 @@ bool ConfigService::lookup(const char *group, const char *key, std::string &resu
             return false;
         }
         assert(root.HasMember("body"));
-
-        rapidjson::Value v(root["body"].GetObject());
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        v.Accept(writer);
-        result = buffer.GetString();
-
+        Json::encode(root["body"], result);
         return true;
     }
 
@@ -81,8 +72,8 @@ bool ConfigService::get_group(std::vector<std::string> &result)
     }
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
-        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
-            std::cout << "parse json error!" << std::endl;
+        if (!Json::decode(resp.begin()->second.body, root)) {
+            std::cout << "parse json error! msg: " << resp.begin()->second.ret_code << resp.begin()->second.body << std::endl;
             return false;
         }
         assert(root.HasMember("code"));
@@ -115,27 +106,23 @@ bool ConfigService::fetch()
             continue;
         }
         rapidjson::Document root;
-        if (root.Parse(result.c_str()).HasParseError()) {
-            std::cout << "parse json error!" << std::endl;
-            return false;
+        if (!Json::decode(result, root)) {
+            std::cout << "parse json error! msg: " << result << std::endl;
+            continue;
         }
         assert(root.HasMember("groupId"));
         assert(root.HasMember("sign"));
         const char *key = root["groupId"].GetString();
         const char *sign = root["sign"].GetString();
 
-//        rapidjson::Value v(root["nodes"].GetArray());
-        const rapidjson::Value &v = root["nodes"];
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        v.Accept(writer);
-        const char *value = buffer.GetString();
+        std::string value;
+        Json::encode(root["nodes"], value);
 
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
             continue;
         }
-        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
+        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
     }
 
     return true;
@@ -186,26 +173,25 @@ bool ConfigService::find(const char *group, const char *key, std::string &result
     if (group == nullptr || key == nullptr) {
         return false;
     }
-    bool flag = false;
     Bucket *b = hash_find_bucket(ht_, group, strlen(group));
-    if (b) {
-        rapidjson::Document root;
-        if (root.Parse(b->val->data, b->val->len).HasParseError()) {
-            std::cout << "parse json error!" << std::endl;
-            return flag;
-        }
-        for (rapidjson::Value::ConstValueIterator itr = root.Begin(); itr != root.End(); ++itr) {
-            const rapidjson::Value &tmp = *itr;
-            const char *k = tmp["key"].GetString();
-            const char *v = tmp["value"].GetString();
-            if (k != nullptr && memcmp(k, key, strlen(key)) == 0) {
-                result.assign(v);
-                flag = true;
-                break;
-            }
+    if (!b) {
+        return false;
+    }
+    rapidjson::Document root;
+    if (!Json::decode(b->val->data, b->val->len, root)) {
+        std::cout << "parse json error! msg: " << std::endl;
+        return false;
+    }
+    for (rapidjson::Value::ConstValueIterator itr = root.Begin(); itr != root.End(); ++itr) {
+        const rapidjson::Value &tmp = *itr;
+        const char *k = tmp["key"].GetString();
+        const char *v = tmp["value"].GetString();
+        if (k != nullptr && memcmp(k, key, strlen(key)) == 0) {
+            result.assign(v);
+            return true;
         }
     }
 
-    return flag;
+    return false;
 }
 

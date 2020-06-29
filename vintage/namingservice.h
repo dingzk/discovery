@@ -10,7 +10,7 @@
 
 #include <string>
 #include <memory>
-#include <vector>
+#include <set>
 #include <mutex>
 
 class NamingService
@@ -20,7 +20,7 @@ private:
     std::shared_ptr<Http> http_;
     HashTable *ht_;
     std::mutex lock_{};
-    std::vector<std::string> service_clusters;
+    std::set<std::string> service_clusters;
     bool lookup(const char *service, const char *cluster, std::string &result);
     bool lookupforupdate(const char *service, const char *cluster, const char *sign, std::string &result);
 

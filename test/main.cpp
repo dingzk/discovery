@@ -121,21 +121,19 @@ int main(int argc, char **argv)
 
 
     std::string value;
-    int i = 10;
+    int i = 100;
     while (i-- > 0) {
         configservice.find("ks", value);
-        std::cout << value << std::endl;
+        std::cout << "find value : " << value << std::endl;
 
         configservice.find("ks", "elk_whitelist", value);
-        std::cout << value << std::endl;
+        std::cout << "find value : " << value << std::endl;
 
         namingservice.find("for-test", "test.for", value);
         std::cout << "find value : " << value << std::endl;
 
         sleep(1);
     }
-
-
 
 
     get_mem_info();

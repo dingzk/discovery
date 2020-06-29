@@ -4,9 +4,7 @@
 
 #include "vintage/namingservice.h"
 #include "serializer/MD5/md5.h"
-#include "serializer/rapidjson/document.h"
-#include "serializer/rapidjson/writer.h"
-#include "serializer/rapidjson/stringbuffer.h"
+#include "common/json.h"
 
 #include <pthread.h>
 
@@ -52,7 +50,7 @@ bool NamingService::lookupforupdate(const char *service, const char *cluster, co
     }
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
-        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
+        if(!Json::decode(resp.begin()->second.body, root)) {
             std::cout << "parse json error " << std::endl;
             return false;
         }
@@ -86,7 +84,7 @@ bool NamingService::get_service(std::vector<std::string> &result)
     }
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
-        if (root.Parse(resp.begin()->second.body.c_str()).HasParseError()) {
+        if (!Json::decode(resp.begin()->second.body, root)) {
             std::cout << "parse json error " << std::endl;
             return false;
         }
@@ -96,7 +94,7 @@ bool NamingService::get_service(std::vector<std::string> &result)
         }
         assert(root.HasMember("body"));
         rapidjson::Document doc;
-        doc.Parse(root["body"].GetString());
+        Json::decode(root["body"].GetString(), doc);
         const rapidjson::Value& v = doc["services"];
         for (rapidjson::Value::ConstValueIterator itr = v.Begin(); itr != v.End(); ++itr) {
             const rapidjson::Value &tmp = *itr;
@@ -137,23 +135,19 @@ bool NamingService::fetch()
         if (!ret || result.empty()) {
             continue;
         }
-        if (root.Parse(result.c_str()).HasParseError()) {
+        if (!Json::decode(result, root)) {
             std::cout << "parse json error " << std::endl;
             continue;
         }
+
         assert(root.HasMember("sign"));
         assert(root.HasMember("nodes"));
         const char *sign = root["sign"].GetString();
 
-//        rapidjson::Value v(root["nodes"].GetObject());
-        const rapidjson::Value &v = root["nodes"];
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        v.Accept(writer);
-        const char *value = buffer.GetString();
+        std::string value;
+        Json::encode(root["nodes"], value);
 
         build_key(serv_clu.c_str(), key);
-
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
             continue;
@@ -161,7 +155,7 @@ bool NamingService::fetch()
 
         std::cout << "lookup : " << value << std::endl;
 
-        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
+        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
     }
 
     return true;
@@ -193,7 +187,7 @@ bool NamingService::fetchforupdate()
             std::cout << "not modified!" << std::endl;
             continue;
         }
-        if (root.Parse(result.c_str()).HasParseError()) {
+        if (!Json::decode(result, root)) {
             std::cout << "parse json error!" << std::endl;
             continue;
         }
@@ -201,18 +195,12 @@ bool NamingService::fetchforupdate()
         assert(root.HasMember("nodes"));
         const char *sign = root["sign"].GetString();
 
-//        rapidjson::Value v(root["nodes"].GetObject());
-        const rapidjson::Value &v = root["nodes"];
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        v.Accept(writer);
-        const char *value = buffer.GetString();
+        std::string value;
+        Json::encode(root["nodes"], value);
 
         std::cout << "lookupforupdate : " << value << std::endl;
 
-        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value, strlen(value));
-
-        return true;
+        hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
     }
 
     return true;
@@ -223,7 +211,7 @@ bool NamingService::add_watch(const char *service, const char *cluster)
     std::lock_guard<std::mutex> guard(lock_);
     std::string serv(service);
     std::string clu(cluster);
-    service_clusters.push_back(serv + "_" + clu);
+    service_clusters.insert(serv + "_" + clu);
 
     return true;
 }
