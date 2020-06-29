@@ -8,6 +8,8 @@
 #include "serializer/rapidjson/writer.h"
 #include "serializer/rapidjson/stringbuffer.h"
 
+#include <pthread.h>
+
 static const char* kNamingServicePath = "/naming/service";
 static const char* kNamingAdminPath = "/naming/admin";
 static const char* kLookup = "?action=lookup";
@@ -143,7 +145,8 @@ bool NamingService::fetch()
         assert(root.HasMember("nodes"));
         const char *sign = root["sign"].GetString();
 
-        rapidjson::Value v(root["nodes"].GetObject());
+//        rapidjson::Value v(root["nodes"].GetObject());
+        const rapidjson::Value &v = root["nodes"];
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         v.Accept(writer);
@@ -198,7 +201,8 @@ bool NamingService::fetchforupdate()
         assert(root.HasMember("nodes"));
         const char *sign = root["sign"].GetString();
 
-        rapidjson::Value v(root["nodes"].GetObject());
+//        rapidjson::Value v(root["nodes"].GetObject());
+        const rapidjson::Value &v = root["nodes"];
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         v.Accept(writer);

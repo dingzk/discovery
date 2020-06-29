@@ -243,6 +243,9 @@ bool Response::read_header(int sock, std::string &raw_header)
 
 static void format_string(std::string &str)
 {
+    if (str.empty()) {
+        return;
+    }
     int s = str.find_first_not_of(" ");
     int e = str.find_last_not_of(" ");
     str = str.substr(s, e - s + 1);
@@ -274,7 +277,9 @@ bool Response::parse_header(const std::string &raw_header)
             format_string(name);
             auto value = raw_header.substr(index + 1, pos - index - 1);
             format_string(value);
-            header[name] = value;
+            if (!name.empty()) {
+                header[name] = value;
+            }
         }
 
         offset = pos + strlen(eof);
