@@ -5,30 +5,23 @@
 #ifndef DISCOVERY_CONFIGSERVICE_H
 #define DISCOVERY_CONFIGSERVICE_H
 
-#include "http/http.h"
-#include "storage/storage.h"
+#include "vintage/vintage.h"
 
-#include <string>
-#include <memory>
-#include <vector>
+#include <set>
+#include <mutex>
 
-class ConfigService
+class ConfigService : public Vintage
 {
 private:
-    const char *host_;
-    std::shared_ptr<Http> http_;
     HashTable *ht_;
     std::mutex lock_{};
-    bool lookup(const char *group, std::string &result);
-    bool lookup(const char *group, const char *key, std::string &result);
-    bool get_group(std::vector<std::string> &result);
 
 public:
     ConfigService(const char *host, HashTable *ht);
-    bool fetch(void);
-    bool watch(void);
+    bool fetch();
+    bool watch();
     bool find(const char *group, std::string &result);
-    bool find(const char *group, const char *key, std::string &result);
+    bool find(const char *group, const char *raw_key, std::string &result);
 };
 
 

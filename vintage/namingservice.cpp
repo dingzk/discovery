@@ -3,117 +3,11 @@
 //
 
 #include "vintage/namingservice.h"
-#include "serializer/MD5/md5.h"
 #include "common/json.h"
 
 #include <pthread.h>
 
-static const char* kNamingServicePath = "/naming/service";
-static const char* kNamingAdminPath = "/naming/admin";
-static const char* kLookup = "?action=lookup";
-static const char* kLookupForUpdate = "?action=lookupforupdate";
-static const char* kGetService = "?action=getservice";
-static const int kDefaultTimeOut = 1000;
-
-NamingService::NamingService(const char *host, HashTable *ht): host_(host), http_(new Http), ht_(ht) {}
-
-bool NamingService::lookup(const char *service, const char *cluster, std::string &result)
-{
-    return lookupforupdate(service, cluster, nullptr, result);
-}
-
-bool NamingService::lookupforupdate(const char *service, const char *cluster, const char *sign, std::string &result)
-{
-    if (service == nullptr) {
-        return false;
-    }
-    std::map<uint64_t, Response> resp;
-    std::string url("http://");
-    url += host_;
-    url += kNamingServicePath;
-    if (sign != nullptr) {
-        url += kLookupForUpdate;
-        url += "&sign=";
-        url += sign;
-    } else {
-        url += kLookup;
-    }
-    url += "&service=";
-    url += service;
-    url += "&cluster=";
-    url += cluster;
-    url += "%2Fservice";
-    http_->add_url(url, "GET", kDefaultTimeOut);
-    int ret = http_->do_call(resp);
-    if (ret <= 0) {
-        return false;
-    }
-    if (resp.begin()->second.ret_code == 200) {
-        rapidjson::Document root;
-        if(!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error " << std::endl;
-            return false;
-        }
-        assert(root.HasMember("code"));
-        if (atoi(root["code"].GetString()) != 200) {
-            return false;
-        }
-        result.assign(root["body"].GetString());
-        return true;
-    } else if (resp.begin()->second.ret_code == 304) {
-        result.clear();
-        return true;
-    }
-
-    return false;
-}
-
-bool NamingService::get_service(std::vector<std::string> &result)
-{
-    std::lock_guard<std::mutex> guard(lock_);
-    std::string url("http://");
-    url += host_;
-    url += kNamingAdminPath;
-    url += kGetService;
-
-    std::map<uint64_t, Response> resp;
-    http_->add_url(url, "GET", kDefaultTimeOut);
-    int ret = http_->do_call(resp);
-    if (ret <= 0) {
-        return false;
-    }
-    if (resp.begin()->second.ret_code == 200) {
-        rapidjson::Document root;
-        if (!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error " << std::endl;
-            return false;
-        }
-        assert(root.HasMember("code"));
-        if (atoi(root["code"].GetString()) != 200) {
-            return false;
-        }
-        assert(root.HasMember("body"));
-        rapidjson::Document doc;
-        Json::decode(root["body"].GetString(), doc);
-        const rapidjson::Value& v = doc["services"];
-        for (rapidjson::Value::ConstValueIterator itr = v.Begin(); itr != v.End(); ++itr) {
-            const rapidjson::Value &tmp = *itr;
-            result.push_back(tmp["name"].GetString());
-        }
-        return true;
-    }
-
-    return false;
-}
-
-void NamingService::build_key(const char *key, char *build_key)
-{
-    if (strlen(key) >= MAX_KEY_LEN) {
-        gen_md5(key, build_key);
-    } else {
-        strcpy(build_key, key);
-    }
-}
+NamingService::NamingService(const char *host, HashTable *ht): Vintage(host), ht_(ht) {}
 
 bool NamingService::fetch()
 {
@@ -121,33 +15,31 @@ bool NamingService::fetch()
     if (service_clusters.empty()) {
         return false;
     }
-    std::string serv_clu, service, cluster, result;
+    std::string service, cluster;
     rapidjson::Document root;
-    for (auto iter = service_clusters.begin(); iter != service_clusters.end(); ++iter) {
+    for (const auto & servClu : service_clusters) {
         char key[MAX_KEY_LEN] = {0};
-        serv_clu = iter->c_str();
-        int pos = serv_clu.find_first_of("_");
-        service = serv_clu.substr(0, pos);
-        cluster = serv_clu.substr(pos + 1);
+        int pos = servClu.find_first_of("_");
+        service = servClu.substr(0, pos);
+        cluster = servClu.substr(pos + 1);
 
-        result.clear();
-        bool ret = lookup(service.c_str(), cluster.c_str(), result);
-        if (!ret || result.empty()) {
+        root.SetNull();
+        bool ret = lookup(service.c_str(), cluster.c_str(), nullptr, root);
+        if (!ret) {
             continue;
         }
-        if (!Json::decode(result, root)) {
-            std::cout << "parse json error " << std::endl;
-            continue;
-        }
+        const char *body_str = root["body"].GetString();
 
-        assert(root.HasMember("sign"));
-        assert(root.HasMember("nodes"));
-        const char *sign = root["sign"].GetString();
+        rapidjson::Document body;
+        Json::decode(body_str, body);
+        assert(body.HasMember("sign"));
+        assert(body.HasMember("nodes"));
+        const char *sign = body["sign"].GetString();
 
         std::string value;
-        Json::encode(root["nodes"], value);
+        Json::encode(body["nodes"], value);
 
-        build_key(serv_clu.c_str(), key);
+        build_key(servClu.c_str(), key);
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
             continue;
@@ -167,36 +59,36 @@ bool NamingService::fetchforupdate()
     if (service_clusters.empty()) {
         return false;
     }
-    std::string serv_clu, service, cluster, result;
+    std::string service, cluster;
     rapidjson::Document root;
-    for (auto iter = service_clusters.begin(); iter != service_clusters.end(); ++iter) {
+    for (const auto & servClu : service_clusters) {
         char key[MAX_KEY_LEN] = {0};
-        serv_clu = iter->c_str();
-        int pos = serv_clu.find_first_of("_");
-        service = serv_clu.substr(0, pos);
-        cluster = serv_clu.substr(pos + 1);
+        int pos = servClu.find_first_of("_");
+        service = servClu.substr(0, pos);
+        cluster = servClu.substr(pos + 1);
 
-        build_key(serv_clu.c_str(), key);
+        build_key(servClu.c_str(), key);
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
         if (!b) {
             continue;
         }
-        result.clear();
-        bool ret = lookupforupdate(service.c_str(), cluster.c_str(), b->sign, result);
-        if (!ret || result.empty()) {
+        root.SetNull();
+        bool ret = lookup(service.c_str(), cluster.c_str(), b->sign, root);
+        if (!ret) {
             std::cout << "not modified!" << std::endl;
             continue;
         }
-        if (!Json::decode(result, root)) {
-            std::cout << "parse json error!" << std::endl;
-            continue;
-        }
-        assert(root.HasMember("sign"));
-        assert(root.HasMember("nodes"));
-        const char *sign = root["sign"].GetString();
+        const char *body_str = root["body"].GetString();
+
+        rapidjson::Document body;
+        Json::decode(body_str, body);
+
+        assert(body.HasMember("sign"));
+        assert(body.HasMember("nodes"));
+        const char *sign = body["sign"].GetString();
 
         std::string value;
-        Json::encode(root["nodes"], value);
+        Json::encode(body["nodes"], value);
 
         std::cout << "lookupforupdate : " << value << std::endl;
 
@@ -206,12 +98,10 @@ bool NamingService::fetchforupdate()
     return true;
 }
 
-bool NamingService::add_watch(const char *service, const char *cluster)
+bool NamingService::add_watch(std::string service, std::string cluster)
 {
     std::lock_guard<std::mutex> guard(lock_);
-    std::string serv(service);
-    std::string clu(cluster);
-    service_clusters.insert(serv + "_" + clu);
+    service_clusters.insert(service + "_" + cluster);
 
     return true;
 }
@@ -220,7 +110,7 @@ static void *timer_do(void *arg)
 {
     pthread_detach(pthread_self());
 
-    NamingService *nameservice = (NamingService *)arg;
+    auto *nameservice = (NamingService *)arg;
 
     while (true) {
         nameservice->fetchforupdate();
@@ -228,28 +118,25 @@ static void *timer_do(void *arg)
         std::cout << "timer fetch naming ..." << std::endl;
     }
 
-    return nullptr;
 }
 
 bool NamingService::watch()
 {
     pthread_t pid;
     fetch();
-    pthread_create(&pid, NULL, timer_do, (void *)this);
+    pthread_create(&pid, nullptr, timer_do, (void *)this);
 
     return true;
 }
 
-bool NamingService::find(const char *service, const char *cluster, std::string &result)
+bool NamingService::find(std::string service, std::string cluster, std::string &result)
 {
     result.clear();
-    if (service == nullptr || cluster == nullptr) {
+    if (service.empty() || cluster.empty()) {
         return false;
     }
 
-    std::string serv(service);
-    std::string clu(cluster);
-    std::string ori_key = serv + "_" + clu;
+    std::string ori_key = service + "_" + cluster;
 
     char key[MAX_KEY_LEN] = {0};
     build_key(ori_key.c_str(), key);

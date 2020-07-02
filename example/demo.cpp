@@ -17,19 +17,19 @@ int main(int argc, char **argv)
     ConfigService configservice("register.kailash.weibo.com", ht);
     configservice.watch();
 
-
     NamingService namingservice("register.kailash.weibo.com", ht);
     namingservice.add_watch("for-test", "test.for");
     namingservice.add_watch("ks-search", "search.ks");
     namingservice.add_watch("tc-search-huatiapi", "com.weibo.search.huati.i");
     namingservice.watch();
 
-    std::vector<std::string> res;
-    namingservice.get_service(res);
-
-    for (auto i = res.begin(); i != res.end(); i++) {
-        std::cout << *i << std::endl;
-    }
+    // watch careful for lock
+//    std::vector<std::string> res;
+//    namingservice.get_service(res);
+//
+//    for (auto & re : res) {
+//        std::cout << re << std::endl;
+//    }
 
 
     std::string value;

@@ -14,10 +14,7 @@ bool Json::decode(const char *str, rapidjson::Document &root)
     if (str == nullptr) {
         return false;
     }
-    if (root.Parse(str).HasParseError()) {
-        return false;
-    }
-    return true;
+    return !root.Parse(str).HasParseError();
 }
 
 bool Json::decode(const char *str, size_t len, rapidjson::Document &root)
@@ -25,14 +22,10 @@ bool Json::decode(const char *str, size_t len, rapidjson::Document &root)
     if (str == nullptr) {
         return false;
     }
-    if (root.Parse(str, len).HasParseError()) {
-        return false;
-    }
-    return true;
+    return !root.Parse(str, len).HasParseError();
 }
 
 // need no free
-
 bool Json::encode(const rapidjson::Value &v, std::string &str)
 {
     str.clear();
