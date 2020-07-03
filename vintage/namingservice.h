@@ -23,6 +23,7 @@ public:
     bool fetchforupdate();
     bool watch();
     bool add_watch(std::string service, std::string cluster);
+    bool add_watch(const char *service_cluster);
     bool find(std::string service, std::string cluster, std::string &result);
 
 };

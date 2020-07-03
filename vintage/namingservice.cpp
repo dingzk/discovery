@@ -5,6 +5,8 @@
 #include "vintage/namingservice.h"
 #include "common/json.h"
 
+#include "msq/msq.h"
+
 #include <pthread.h>
 
 NamingService::NamingService(const char *host, HashTable *ht): Vintage(host), ht_(ht) {}
@@ -106,6 +108,14 @@ bool NamingService::add_watch(std::string service, std::string cluster)
     return true;
 }
 
+bool NamingService::add_watch(const char *service_cluster)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    service_clusters.insert(service_cluster);
+
+    return true;
+}
+
 static void *timer_do(void *arg)
 {
     pthread_detach(pthread_self());
@@ -120,11 +130,30 @@ static void *timer_do(void *arg)
 
 }
 
+static void *scan_msq(void *arg)
+{
+    pthread_detach(pthread_self());
+
+    auto *nameservice = (NamingService *)arg;
+    int msqid = init_msq(MSQ_FILE);
+    int nrecv;
+    while (true) {
+        char recv[MAX_MSG_LEN]  = {0};
+        nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_NAMING_SERVICE);
+        if (nrecv > 0) {
+            nameservice->add_watch(recv);
+            std::cout << "add naming ..." << recv << std::endl;
+        }
+    }
+
+}
+
 bool NamingService::watch()
 {
-    pthread_t pid;
+    pthread_t pid, pid_msg;
     fetch();
     pthread_create(&pid, nullptr, timer_do, (void *)this);
+    pthread_create(&pid_msg, nullptr, scan_msq, (void *)this);
 
     return true;
 }

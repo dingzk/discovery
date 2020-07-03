@@ -12,11 +12,10 @@ ConfigService::ConfigService(const char *host, HashTable *ht): Vintage(host), ht
 bool ConfigService::fetch()
 {
     std::lock_guard<std::mutex> guard(lock_);
-    std::vector<std::string> groups;
-    bool ret = get_group(groups);
-    if (!ret || groups.empty()) {
+    if (groups.empty()) {
         return false;
     }
+    bool ret;
     for (auto & group : groups) {
         rapidjson::Document root;
         ret = lookup(group.c_str(), nullptr, root);
@@ -50,6 +49,17 @@ bool ConfigService::fetch()
     return true;
 }
 
+bool ConfigService::add_watch(const char *group)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    groups.insert(group);
+}
+
+bool ConfigService::add_watch(const char *group, const char *key)
+{
+
+}
+
 static void *timer_do(void *arg)
 {
     pthread_detach(pthread_self());
@@ -64,11 +74,30 @@ static void *timer_do(void *arg)
 
 }
 
+static void *scan_msq(void *arg)
+{
+    pthread_detach(pthread_self());
+
+    auto *configservice = (ConfigService *)arg;
+    int msqid = init_msq(MSQ_FILE);
+    int nrecv;
+    while (true) {
+        char recv[MAX_MSG_LEN]  = {0};
+        nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_CONFIG_SERVICE);
+        if (nrecv > 0) {
+            configservice->add_watch(recv);
+            std::cout << "add config ..." << recv << std::endl;
+        }
+    }
+
+}
+
 bool ConfigService::watch()
 {
-    pthread_t pid;
+    pthread_t pid, pid_msg;
     fetch();
     pthread_create(&pid, nullptr, timer_do, (void *)this);
+    pthread_create(&pid_msg, nullptr, scan_msq, (void *)this);
 
     return true;
 }

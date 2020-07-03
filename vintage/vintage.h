@@ -14,6 +14,13 @@
 #include <memory>
 #include <vector>
 
+#include "msq/msq.h"
+
+#define MSQ_FILE "/data1/apache2/htdocs/msq"
+#define MSG_TYPE_CONFIG_SERVICE 0x10c
+#define MSG_TYPE_NAMING_SERVICE 0x10d
+
+
 class Vintage
 {
 private:
