@@ -15,10 +15,13 @@
 mem_shared_globals *shared_globals = NULL;
 
 #if defined(USE_MMAP)
+extern zend_shared_memory_handlers zend_alloc_mmap_handlers;
 static const zend_shared_memory_handler_entry handler_entry = { "mmap", &zend_alloc_mmap_handlers };
 #elif defined(USE_SHM)
+extern zend_shared_memory_handlers zend_alloc_shm_handlers;
 static const zend_shared_memory_handler_entry handler_entry = { "shm", &zend_alloc_shm_handlers };
 #elif defined(USE_SHM_OPEN)
+extern zend_shared_memory_handlers zend_alloc_posix_handlers;
 static const zend_shared_memory_handler_entry handler_entry = { "posix", &zend_alloc_posix_handlers };
 #else
 #error(no defined shared memory supported)

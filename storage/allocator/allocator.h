@@ -88,16 +88,6 @@ void shared_alloc_protect(int mode);
 
 int shared_in_shm(void *ptr);
 
-#if defined(USE_MMAP)
-extern zend_shared_memory_handlers zend_alloc_mmap_handlers;
-#elif defined(USE_SHM)
-extern zend_shared_memory_handlers zend_alloc_shm_handlers;
-#elif defined(USE_SHM_OPEN)
-extern zend_shared_memory_handlers zend_alloc_posix_handlers;
-#else
-#error(no defined shared memory handlers supported)
-#endif
-
 extern mem_shared_globals *shared_globals;
 
 #define SMH(s) (handler_entry.handler->s)
