@@ -3,8 +3,36 @@
 #include "vintage/namingservice.h"
 #include <iostream>
 
+#include "msq/msq.h"
+
+int msg_test ()
+{
+    int msqid = create_msq("/data1/apache2/htdocs/msq");
+
+    std::cout << msqid << std::endl;
+
+    const char *msg = "hello world";
+    int ret = send_msg(msqid, msg, strlen(msg), (void *)MSG_TYPE);
+
+    std::cout << ret << std::endl;
+    std::cout << msqid << std::endl;
+
+    char recv[MAX_MSG_LEN]  = {0};
+
+    init_msq("/data1/apache2/htdocs/msq");
+
+    int nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE);
+
+    std::cout << nrecv << std::endl;
+    std::cout << recv << std::endl;
+
+    return 0;
+}
+
+
 int main(int argc, char **argv)
 {
+
     char *err = NULL;
     HashTable *ht = hash_startup(4 * 1024 * 1024, 4*1024*1024, &err);
     if (!ht) {
