@@ -88,6 +88,7 @@ static void *scan_msq(void *arg)
         if (nrecv > 0) {
             configservice->add_watch(recv);
             std::cout << "add config ..." << recv << std::endl;
+            continue;
         }
         sleep(1);
     }
@@ -119,6 +120,9 @@ bool ConfigService::find(const char *group, std::string &result)
         return true;
     }
 
+    int msqid = init_msq(MSQ_FILE);
+    send_msg(msqid, group, strlen(group), (void *) MSG_TYPE_CONFIG_SERVICE);
+
     return false;
 }
 
@@ -133,6 +137,8 @@ bool ConfigService::find(const char *group, const char *raw_key, std::string &re
 
     Bucket *b = hash_find_bucket(ht_, group, strlen(group));
     if (!b) {
+        int msqid = init_msq(MSQ_FILE);
+        send_msg(msqid, group, strlen(group), (void *) MSG_TYPE_CONFIG_SERVICE);
         return false;
     }
     rapidjson::Document root;

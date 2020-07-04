@@ -147,6 +147,7 @@ static void *scan_msq(void *arg)
         if (nrecv > 0) {
             nameservice->add_watch(recv);
             std::cout << "add naming ..." << recv << std::endl;
+            continue;
         }
         sleep(1);
     }

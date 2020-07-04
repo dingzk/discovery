@@ -18,7 +18,7 @@
 
 typedef struct _msq_buf {
     long mtype;
-    char mtext[1];
+    char mtext[MAX_MSG_LEN];
 } msq_buf;
 
 static key_t gen_key(const char *identify)
