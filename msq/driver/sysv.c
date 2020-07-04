@@ -13,9 +13,8 @@
 #include <sys/stat.h>
 #include <string.h>
 
+#define DEFAULT_MSQ_KEY 0x1aaaaaa1
 #define LOW_8BIT 0x7
-
-#define PERMS 0666
 
 typedef struct _msq_buf {
     long mtype;
@@ -24,6 +23,9 @@ typedef struct _msq_buf {
 
 static key_t gen_key(const char *identify)
 {
+    if (identify == NULL || stat(identify, NULL) < 0) {
+        return DEFAULT_MSQ_KEY;
+    }
     return ftok(identify, LOW_8BIT);
 }
 
@@ -42,7 +44,9 @@ int sysv_create_msq(const char *identify)
             if (msgctl(msqid, IPC_RMID, NULL) == -1) {
                 return -1;
             }
+            continue;
         }
+        break;
     }
 
     return msqid;
@@ -82,7 +86,7 @@ int sysv_recv_msg(int msqid, void *msgp, size_t msgsz, void *prio)
     if (msgp == NULL) {
         return -1;
     }
-    while ((nrcv = msgrcv(msqid, &mbuf, msgsz, (long) prio, 0)) == -1) {
+    while ((nrcv = msgrcv(msqid, &mbuf, msgsz, (long) prio, MSG_NOERROR)) == -1) {
         if (errno != EINTR) {
             break;
         }
@@ -92,6 +96,11 @@ int sysv_recv_msg(int msqid, void *msgp, size_t msgsz, void *prio)
     }
 
     return nrcv;
+}
+
+int sysv_close_msq(int msqid)
+{
+    return 0;
 }
 
 int sysv_destory_msq(const char *identify)
@@ -107,6 +116,7 @@ msq_handler sysv_msg_handler = {
         sysv_init_msq,
         sysv_send_msg,
         sysv_recv_msg,
+        sysv_close_msq,
         sysv_destory_msq
 };
 

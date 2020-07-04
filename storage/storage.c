@@ -345,23 +345,47 @@ int hash_delete_bucket(HashTable *ht, char *key, uint32_t len)
     return SUCCESS;
 }
 
-static int init_bucket(Bucket *p, uint64_t h, const char *sign, uint32_t sign_len, const char *key, uint32_t key_len, const char *data, uint32_t data_len)
+static int init_empty_bucket(Bucket *p, uint64_t h, const char *key, uint32_t key_len)
 {
     if (!p || key_len > MAX_KEY_LEN) {
         return FAILURE;
     }
 
-    // value
+    // bucket
+    memset(p, 0, sizeof(Bucket));
+    p->crc = 0;
+    p->len = key_len;
+    memcpy(p->key, key, key_len);
+    p->h = h;
+    p->val = NULL;
+
+    return SUCCESS;
+}
+
+static String *alloc_val(const char *data, uint32_t data_len)
+{
+    if (data_len <= 0) {
+        return NULL;
+    }
     uint32_t real_size = alloc_real_size(sizeof(String) + data_len - 1);
     String *v = (String *)zend_shared_raw_alloc(real_size);
     if (!v) {
-        return FAILURE;
+        return NULL;
     }
     memcpy(v->data, data, data_len);
     v->len = data_len;
     v->next = HT_INVALID_IDX;
     v->real_size = real_size;
     v->atime = time(NULL);
+
+    return v;
+}
+
+static int init_bucket(Bucket *p, uint64_t h, const char *sign, uint32_t sign_len, const char *key, uint32_t key_len, const char *data, uint32_t data_len)
+{
+    if (!p || key_len > MAX_KEY_LEN) {
+        return FAILURE;
+    }
 
     // bucket
     memset(p, 0, sizeof(Bucket));
@@ -371,9 +395,16 @@ static int init_bucket(Bucket *p, uint64_t h, const char *sign, uint32_t sign_le
     p->h = h;
     memcpy(p->sign, sign, sign_len);
     p->sign[sign_len] = '\0';
+
+    // value
+    String *v = alloc_val(data, data_len);
+    if (!v) {
+        return FAILURE;
+    }
+
     p->val = v;
 
-    return 1;
+    return SUCCESS;
 }
 
 static int update_bucket(Bucket *p, const char *sign, uint32_t sign_len, const char *data, uint32_t data_len)
@@ -383,11 +414,16 @@ static int update_bucket(Bucket *p, const char *sign, uint32_t sign_len, const c
     }
 
     String *v = p->val;
+    if (!v) {
+        v = alloc_val(data, data_len);
+        if (!v) {
+            return FAILURE;
+        }
+    }
     uint32_t next_idx = v->next;
 
     if (v->real_size < data_len + sizeof(String) - 1) {
-        uint32_t real_size = alloc_real_size(sizeof(String) + data_len - 1);
-        v = (String *)zend_shared_raw_alloc(real_size);
+        v = alloc_val(data, data_len);
         if (!v) {
             return FAILURE;
         }

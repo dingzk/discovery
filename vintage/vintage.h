@@ -16,7 +16,7 @@
 
 #include "msq/msq.h"
 
-#define MSQ_FILE "/data1/apache2/htdocs/msq"
+#define MSQ_FILE "/msq"
 #define MSG_TYPE_CONFIG_SERVICE 0x10c
 #define MSG_TYPE_NAMING_SERVICE 0x10d
 

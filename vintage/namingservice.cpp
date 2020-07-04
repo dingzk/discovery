@@ -63,6 +63,7 @@ bool NamingService::fetchforupdate()
     }
     std::string service, cluster;
     rapidjson::Document root;
+    bool ret;
     for (const auto & servClu : service_clusters) {
         char key[MAX_KEY_LEN] = {0};
         int pos = servClu.find_first_of("_");
@@ -71,11 +72,13 @@ bool NamingService::fetchforupdate()
 
         build_key(servClu.c_str(), key);
         Bucket *b = hash_find_bucket(ht_, key, strlen(key));
-        if (!b) {
-            continue;
-        }
         root.SetNull();
-        bool ret = lookup(service.c_str(), cluster.c_str(), b->sign, root);
+        if (!b) {
+            ret = lookup(service.c_str(), cluster.c_str(), nullptr, root);
+            std::cout << "add new naming !" << std::endl;
+        } else {
+            ret = lookup(service.c_str(), cluster.c_str(), b->sign, root);
+        }
         if (!ret) {
             std::cout << "not modified!" << std::endl;
             continue;
@@ -135,15 +138,17 @@ static void *scan_msq(void *arg)
     pthread_detach(pthread_self());
 
     auto *nameservice = (NamingService *)arg;
-    int msqid = init_msq(MSQ_FILE);
+    int msqid = create_msq(MSQ_FILE);
     int nrecv;
     while (true) {
+        msqid = init_msq(MSQ_FILE);
         char recv[MAX_MSG_LEN]  = {0};
         nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_NAMING_SERVICE);
         if (nrecv > 0) {
             nameservice->add_watch(recv);
             std::cout << "add naming ..." << recv << std::endl;
         }
+        sleep(1);
     }
 
 }
@@ -174,6 +179,9 @@ bool NamingService::find(std::string service, std::string cluster, std::string &
         result.assign(b->val->data, b->val->len);
         return true;
     }
+
+    int msqid = init_msq(MSQ_FILE);
+    send_msg(msqid, ori_key.c_str(), ori_key.size(), (void *) MSG_TYPE_NAMING_SERVICE);
 
     return false;
 }

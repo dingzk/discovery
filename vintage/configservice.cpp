@@ -79,15 +79,17 @@ static void *scan_msq(void *arg)
     pthread_detach(pthread_self());
 
     auto *configservice = (ConfigService *)arg;
-    int msqid = init_msq(MSQ_FILE);
+    int msqid = create_msq(MSQ_FILE);
     int nrecv;
     while (true) {
+        msqid = init_msq(MSQ_FILE);
         char recv[MAX_MSG_LEN]  = {0};
         nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_CONFIG_SERVICE);
         if (nrecv > 0) {
             configservice->add_watch(recv);
             std::cout << "add config ..." << recv << std::endl;
         }
+        sleep(1);
     }
 
 }

@@ -71,7 +71,7 @@ add_library(discovery SHARED
 
 #指定生成目标
 add_executable(test example/demo.cpp)
-TARGET_LINK_LIBRARIES(test discovery pthread stdc++)
+TARGET_LINK_LIBRARIES(test discovery pthread stdc++ rt)
 
 
 # make test

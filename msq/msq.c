@@ -7,6 +7,9 @@
 #ifdef USE_SYSV
 extern msq_handler sysv_msg_handler;
 static const msq_handler_entry handler_entry = {"sysv", &sysv_msg_handler};
+#elif defined(USE_POSIX)
+extern msq_handler posix_msg_handler;
+static const msq_handler_entry handler_entry = {"posix", &posix_msg_handler};
 #endif
 
 int create_msq(const char *identify)
