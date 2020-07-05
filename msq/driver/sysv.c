@@ -23,7 +23,8 @@ typedef struct _msq_buf {
 
 static key_t gen_key(const char *identify)
 {
-    if (identify == NULL || stat(identify, NULL) < 0) {
+    struct stat statbuf;
+    if (identify == NULL || stat(identify, &statbuf) < 0) {
         return DEFAULT_MSQ_KEY;
     }
     return ftok(identify, LOW_8BIT);
