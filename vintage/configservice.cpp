@@ -4,7 +4,6 @@
 
 #include "vintage/configservice.h"
 #include "common/json.h"
-
 #include <pthread.h>
 
 ConfigService::ConfigService(const char *host, HashTable *ht): Vintage(host), ht_(ht) {}

@@ -9,13 +9,14 @@
 
 #include <set>
 #include <mutex>
+#include <unordered_map>
 
 class NamingService : public Vintage
 {
 private:
     HashTable *ht_;
     std::mutex lock_{};
-    std::set<std::string> service_clusters;
+    std::unordered_map<std::string, std::set<std::string>> serv_clusters;
 
 public:
     NamingService(const char *host, HashTable *ht);
@@ -23,8 +24,9 @@ public:
     bool fetchforupdate();
     bool watch();
     bool add_watch(std::string service, std::string cluster);
-    bool add_watch(const char *service_cluster);
+    bool add_watch(std::string servCluster);
     bool find(std::string service, std::string cluster, std::string &result);
+    bool find(const char *service, const char *cluster, std::string &result);
 
 };
 

@@ -4,8 +4,7 @@
 
 #include "vintage/vintage.h"
 #include "serializer/MD5/md5.h"
-
-#include <string.h>
+#include <cstring>
 
 // configservice
 static const char* kConfigServicePath = "/1/config/service";
@@ -26,6 +25,18 @@ Vintage::Vintage(const char *host): host_(host), http_(new Http) {}
 std::string Vintage::gen_hash_key(const char *key1, const char *key2)
 {
     return std::string(key1) + "_" + key2;
+}
+
+bool Vintage::apart_hash_key(const std::string &gen_key, std::string &key1, std::string &key2)
+{
+    if (gen_key.empty()) {
+        return false;
+    }
+    int pos = gen_key.find_first_of("_");
+    key1 = gen_key.substr(0, pos);
+    key2 = gen_key.substr(pos + 1);
+
+    return true;
 }
 
 void Vintage::build_key(const char *key, char *build_key)
