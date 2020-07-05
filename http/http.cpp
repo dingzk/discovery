@@ -221,6 +221,8 @@ static bool http_read_n(int sock, char *buffer, int len, std::string &eof)
     return (read_pos == len);
 }
 
+Response::Response() : request_id(0), ret_code(0) {}
+
 bool Response::read_header(int sock, std::string &raw_header)
 {
     result.reserve(1024);

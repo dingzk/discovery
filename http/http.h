@@ -50,6 +50,7 @@ public:
     int ret_code;
 
 public:
+    Response();
     bool read_header(int sock, std::string &raw_header);
     bool parse_header(const std::string &raw_header);
     bool read_body(int sock, std::string &raw_body);
