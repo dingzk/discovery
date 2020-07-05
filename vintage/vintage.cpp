@@ -23,6 +23,11 @@ static const int kDefaultTimeOut = 1000;
 
 Vintage::Vintage(const char *host): host_(host), http_(new Http) {}
 
+std::string Vintage::gen_hash_key(const char *key1, const char *key2)
+{
+    return std::string(key1) + "_" + key2;
+}
+
 void Vintage::build_key(const char *key, char *build_key)
 {
     if (strlen(key) >= MAX_KEY_LEN) {

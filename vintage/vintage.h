@@ -28,6 +28,7 @@ private:
     std::shared_ptr<Http> http_;
 
 protected:
+    static std::string gen_hash_key(const char *key1, const char*key2);
     static void build_key(const char *key, char *build_key);
     bool lookup(const char *group, const char *key, rapidjson::Document &root);
     bool lookup(const char *service, const char *cluster, const char *sign, rapidjson::Document &root);

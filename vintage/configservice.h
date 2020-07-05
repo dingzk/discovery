@@ -9,6 +9,7 @@
 
 #include <set>
 #include <mutex>
+#include <unordered_map>
 
 class ConfigService : public Vintage
 {
