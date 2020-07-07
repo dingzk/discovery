@@ -16,4 +16,6 @@ const char *get_last_substring(const std::string &str, const std::string &sep);
 
 void stripslashes(std::string &str);
 
+int get_file_size(const char *filepath);
+
 #endif //DISCOVERY_UTILS_H

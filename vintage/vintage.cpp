@@ -76,7 +76,7 @@ bool Vintage::lookup(const char *service, const char *cluster, const char *sign,
     }
     if (resp.begin()->second.ret_code == 200) {
         if(!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error " << std::endl;
+            LOG_WARN("parse body error: %s", url.c_str());
             return false;
         }
         assert(root.HasMember("code"));
@@ -110,7 +110,7 @@ bool Vintage::lookup(const char *group, const char *key, rapidjson::Document &ro
     }
     if (resp.begin()->second.ret_code == 200) {
         if (!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error!" << resp.begin()->second.ret_code << resp.begin()->second.body << std::endl;
+            LOG_WARN("parse body error: %s code: %d body: %s", url.c_str(), resp.begin()->second.ret_code, resp.begin()->second.body.c_str());
             return false;
         }
         assert(root.HasMember("code"));
@@ -136,7 +136,7 @@ bool Vintage::get_group(std::vector<std::string> &result)
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
         if (!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error! msg: " << resp.begin()->second.ret_code << resp.begin()->second.body << std::endl;
+            LOG_WARN("parse body error: %s code: %d body: %s", url.c_str(), resp.begin()->second.ret_code, resp.begin()->second.body.c_str());
             return false;
         }
         assert(root.HasMember("code"));
@@ -170,7 +170,7 @@ bool Vintage::get_service(std::vector<std::string> &result)
     if (resp.begin()->second.ret_code == 200) {
         rapidjson::Document root;
         if (!Json::decode(resp.begin()->second.body, root)) {
-            std::cout << "parse json error " << std::endl;
+            LOG_WARN("parse body error: %s", url.c_str());
             return false;
         }
         assert(root.HasMember("code"));

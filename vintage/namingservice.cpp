@@ -43,8 +43,7 @@ bool NamingService::fetch()
             if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
                 continue;
             }
-            std::cout << "lookup : " << value << std::endl;
-
+            LOG_INFO("lookup: %s_%s value: %s", service.c_str(), cluster.c_str(), value.c_str());
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
         }
     }
@@ -71,12 +70,11 @@ bool NamingService::fetchforupdate()
             root.SetNull();
             if (!b) {
                 ret = lookup(service.c_str(), cluster.c_str(), nullptr, root);
-                std::cout << "add new naming !" << std::endl;
+                LOG_INFO("add watch naming: %s_%s", service.c_str(), cluster.c_str());
             } else {
                 ret = lookup(service.c_str(), cluster.c_str(), b->sign, root);
             }
             if (!ret) {
-                std::cout << "not modified!" << std::endl;
                 continue;
             }
             rapidjson::Document body;
@@ -89,7 +87,7 @@ bool NamingService::fetchforupdate()
             std::string value;
             Json::encode(body["nodes"], value);
 
-            std::cout << "lookupforupdate : " << value << std::endl;
+            LOG_INFO("lookupforupdate: %s_%s value: %s", service.c_str(), cluster.c_str(), value.c_str());
 
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
         }
@@ -102,7 +100,10 @@ bool NamingService::fetchforupdate()
 bool NamingService::add_watch(std::string service, std::string cluster)
 {
     std::lock_guard<std::mutex> guard(lock_);
-    serv_clusters.insert({service, {cluster}});
+    auto ret = serv_clusters.insert({service, {cluster}});
+    if (ret.second) {
+        LOG_INFO("add watch naming: %s_%s", service.c_str(), cluster.c_str());
+    }
 
     return true;
 }
@@ -113,7 +114,10 @@ bool NamingService::add_watch(std::string servCluster)
     std::string service;
     std::string cluster;
     apart_hash_key(servCluster, service, cluster);
-    serv_clusters.insert({service, {cluster}});
+    auto ret = serv_clusters.insert({service, {cluster}});
+    if (ret.second) {
+        LOG_INFO("add watch naming: %s_%s", service.c_str(), cluster.c_str());
+    }
 
     return true;
 }
@@ -127,7 +131,6 @@ static void *timer_do(void *arg)
     while (true) {
         nameservice->fetchforupdate();
         sleep(5);
-        std::cout << "timer fetch naming ..." << std::endl;
     }
 
 }
@@ -145,7 +148,6 @@ static void *scan_msq(void *arg)
         nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_NAMING_SERVICE);
         if (nrecv > 0) {
             nameservice->add_watch(recv);
-            std::cout << "add naming ..." << recv << std::endl;
             continue;
         }
         sleep(1);

@@ -1,4 +1,3 @@
-#include "storage/storage.h"
 #include "vintage/configservice.h"
 #include "vintage/namingservice.h"
 #include <iostream>
@@ -114,9 +113,12 @@ int main(int argc, char **argv)
     }
 
     hash_dump(ht);
+    log_init("./discovery.log", LEVEL_INFO);
 
     ConfigService configservice("register.kailash.weibo.com", ht);
     configservice.add_watch("ks");
+    configservice.add_watch("mi");
+    configservice.add_watch("searcher_sdk");
     configservice.watch();
 
     NamingService namingservice("register.kailash.weibo.com", ht);
@@ -133,9 +135,10 @@ int main(int argc, char **argv)
 //    }
 
 
+
     std::string value;
     int i = 100;
-    while (i--) {
+    while (true) {
         configservice.find("ks", "elk_whitelist", value);
         std::cout << "find value : " << value << std::endl;
 
@@ -153,6 +156,8 @@ int main(int argc, char **argv)
     hash_dump(ht);
 
     hash_destory(ht);
+
+    log_destroy();
 
     return 0;
 }

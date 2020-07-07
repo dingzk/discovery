@@ -8,6 +8,7 @@
 #include "http/http.h"
 #include "storage/storage.h"
 #include "common/json.h"
+#include "common/log.h"
 
 #include <mutex>
 #include <string>

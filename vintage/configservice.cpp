@@ -46,6 +46,7 @@ bool ConfigService::fetch()
             if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
                 continue;
             }
+            LOG_INFO("lookup: %s_%s value: %s", groupId, k, v);
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), v, strlen(v));
         }
 
@@ -57,7 +58,10 @@ bool ConfigService::fetch()
 bool ConfigService::add_watch(const char *group)
 {
     std::lock_guard<std::mutex> guard(lock_);
-    groups.insert(group);
+    auto ret = groups.insert(group);
+    if (ret.second) {
+        LOG_INFO("add watch config: %s", group);
+    }
 }
 
 bool ConfigService::add_watch(const char *group, const char *key)
@@ -74,7 +78,6 @@ static void *timer_do(void *arg)
     while (true) {
         configservice->fetch();
         sleep(5);
-        std::cout << "timer fetch config ..." << std::endl;
     }
 
 }
@@ -92,7 +95,6 @@ static void *scan_msq(void *arg)
         nrecv = recv_msg(msqid, recv, MAX_MSG_LEN, (void *) MSG_TYPE_CONFIG_SERVICE);
         if (nrecv > 0) {
             configservice->add_watch(recv);
-            std::cout << "add config ..." << recv << std::endl;
             continue;
         }
         sleep(1);

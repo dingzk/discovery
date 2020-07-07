@@ -2,6 +2,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
 #include "common/utils.h"
 
 long get_current_time_ms() {
@@ -88,4 +89,17 @@ void stripslashes(std::string &str)
     free(temp);
 }
 /* }}} */
+
+int get_file_size(const char *filepath)
+{
+    struct stat buff;
+
+    if (filepath != NULL) {
+        stat(filepath, &buff);
+
+        return buff.st_size;
+    }
+
+    return -1;
+}
 
