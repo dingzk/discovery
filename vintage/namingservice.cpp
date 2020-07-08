@@ -43,7 +43,7 @@ bool NamingService::fetch()
             if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
                 continue;
             }
-            LOG_INFO("lookup: %s_%s value: %s", service.c_str(), cluster.c_str(), value.c_str());
+            LOG_INFO("lookup: %s_%s value: %s sign: %s", service.c_str(), cluster.c_str(), value.c_str(), sign);
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
         }
     }
@@ -87,8 +87,7 @@ bool NamingService::fetchforupdate()
             std::string value;
             Json::encode(body["nodes"], value);
 
-            LOG_INFO("lookupforupdate: %s_%s value: %s", service.c_str(), cluster.c_str(), value.c_str());
-
+            LOG_INFO("lookupforupdate: %s_%s value: %s sign: %s", service.c_str(), cluster.c_str(), value.c_str(), sign);
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), value.c_str(), value.size());
         }
 

@@ -87,7 +87,8 @@ HashTable *hash_startup(uint32_t k_size, uint32_t v_size, char **err);
 
 void hash_destory(HashTable *ht);
 
-void hash_dump(const HashTable *ht);
+void hash_dump_timer(const HashTable *ht);
+void hash_dump_debug(const HashTable *ht);
 
 Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
 

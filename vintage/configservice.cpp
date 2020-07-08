@@ -46,7 +46,7 @@ bool ConfigService::fetch()
             if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
                 continue;
             }
-            LOG_INFO("lookup: %s_%s value: %s", groupId, k, v);
+            LOG_INFO("lookup: %s_%s value: %s sign: %s", groupId, k, v, sign);
             hash_add_or_update_bucket(ht_, sign, strlen(sign), key, strlen(key), v, strlen(v));
         }
 

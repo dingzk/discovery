@@ -7,6 +7,8 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
 
 
 static inline unsigned int align_size(uint32_t size) {
@@ -258,7 +260,46 @@ void hash_destory(HashTable *ht)
     shared_alloc_shutdown();
 }
 
-void hash_dump(const HashTable *ht)
+static void *thread_dump(void *args)
+{
+    pthread_detach(pthread_self());
+    HashTable *ht = args;
+    if (!args) {
+        return NULL;
+    }
+
+LOOP:
+    sleep(7);
+    Bucket *p = ht->arData;
+    Bucket *end = p + ht->nNumUsed;
+
+    FILE *fp = fopen("hash.dump", "w+");
+    time_t timestamp = time(NULL);
+    fprintf(fp, "dump time: %s", asctime(localtime(&timestamp)));
+    char *data;
+    for (;p != end; p++) {
+        if (p->flag == FLAG_DELETE) {
+            continue;
+        }
+        fprintf(fp, "key: %s\n", p->key);
+        fprintf(fp, "sign: %s\n", p->sign);
+        data = strndup(p->val->data, p->val->len);
+        fprintf(fp, "value: %s\n", data);
+        fprintf(fp, "time: %s\n", asctime(localtime(&(p->val->atime))));
+        free(data);
+    }
+    fflush(fp);
+    fclose(fp);
+    goto LOOP;
+}
+
+void hash_dump_timer(const HashTable *ht)
+{
+    pthread_t pid;
+    pthread_create(&pid, NULL, thread_dump, (void *)ht);
+}
+
+void hash_dump_debug(const HashTable *ht)
 {
     Bucket *p = ht->arData;
     Bucket *end = p + ht->nNumUsed;
@@ -268,21 +309,18 @@ void hash_dump(const HashTable *ht)
             continue;
         }
         printf("-------------\n");
-
         printf("sign: %s\n", p->sign);
         printf("key: %s\n", p->key);
         data = strndup(p->val->data, p->val->len);
         printf("value: %s\n", data);
         free(data);
-
         printf("-------------\n");
     }
-
     printf("Hashtable summary:\n");
     printf("ht.nNumUsed : %d\n", ht->nNumUsed);
     printf("ht.nNumOfElements: %d\n", ht->nNumOfElements);
     printf("ht.nTableSize: %d\n", ht->nTableSize);
-
+    get_mem_info();
 }
 
 Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len)
@@ -491,5 +529,5 @@ UPDATE_TO_HASH:
 
 void get_mem_info()
 {
-    printf("mem free: %dM\n",MMSG(shared_free)/1024/1024);
+    printf("mem free: %luM\n",MMSG(shared_free)/1024/1024);
 }
