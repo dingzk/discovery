@@ -43,7 +43,7 @@ bool ConfigService::fetch()
             build_key(gen_key.c_str(), key);
 
             Bucket *b = hash_find_bucket(ht_, key, strlen(key));
-            if (b && memcmp(sign, b->sign, strlen(sign)) == 0) {
+            if (b && is_equal_bucket_data(b, v, strlen(v))) {
                 continue;
             }
             LOG_INFO("lookup: %s_%s value: %s sign: %s", groupId, k, v, sign);

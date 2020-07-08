@@ -273,7 +273,7 @@ LOOP:
     Bucket *p = ht->arData;
     Bucket *end = p + ht->nNumUsed;
 
-    FILE *fp = fopen("hash.dump", "w+");
+    FILE *fp = fopen(DUMPFILE, "w+");
     time_t timestamp = time(NULL);
     fprintf(fp, "dump time: %s", asctime(localtime(&timestamp)));
     char *data;
@@ -288,6 +288,7 @@ LOOP:
         fprintf(fp, "time: %s\n", asctime(localtime(&(p->val->atime))));
         free(data);
     }
+    fprintf(fp, "free mem: %lu KB\n", MMSG(shared_free)/1024);
     fflush(fp);
     fclose(fp);
     goto LOOP;
@@ -321,6 +322,15 @@ void hash_dump_debug(const HashTable *ht)
     printf("ht.nNumOfElements: %d\n", ht->nNumOfElements);
     printf("ht.nTableSize: %d\n", ht->nTableSize);
     get_mem_info();
+}
+
+int is_equal_bucket_data(Bucket *b, const char *data, int len)
+{
+    if (!b || !b->crc || !data) {
+        return 0;
+    }
+
+    return b->crc == crc32(data, len);
 }
 
 Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len)

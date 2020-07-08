@@ -16,6 +16,8 @@ extern "C"
 #define MAX_SIGN_LEN            (33)
 #define MAX_KEY_LEN             (48)
 
+#define DUMPFILE            ("hash.dump")
+
 typedef enum
 {
     SUCCESS = 0,
@@ -93,6 +95,8 @@ void hash_dump_debug(const HashTable *ht);
 Bucket *hash_find_bucket(const HashTable *ht, const char *key, uint32_t len);
 
 int hash_delete_bucket(HashTable *ht, char *key, uint32_t len);
+
+int is_equal_bucket_data(Bucket *b, const char *data, int len);
 
 int hash_add_or_update_bucket(HashTable *ht, const char *sign, uint32_t sign_len, const char *key, uint32_t len,
                               const char *data, uint32_t size);
