@@ -23,17 +23,12 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build/lib)
 
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/storage)
-include_directories(${PROJECT_SOURCE_DIR}/storage/allocator)
-include_directories(${PROJECT_SOURCE_DIR}/storage/allocator/alloc)
 include_directories(${PROJECT_SOURCE_DIR}/serializer)
-include_directories(${PROJECT_SOURCE_DIR}/serializer/cJSON)
-include_directories(${PROJECT_SOURCE_DIR}/serializer/MD5)
-include_directories(${PROJECT_SOURCE_DIR}/serializer/rapidjson)
 include_directories(${PROJECT_SOURCE_DIR}/compressor)
 include_directories(${PROJECT_SOURCE_DIR}/common)
 include_directories(${PROJECT_SOURCE_DIR}/http)
 include_directories(${PROJECT_SOURCE_DIR}/msq)
-include_directories(${PROJECT_SOURCE_DIR}/http/events)
+include_directories(${PROJECT_SOURCE_DIR}/vintage)
 
 # 自动发现目录下的源码
 #AUX_SOURCE_DIRECTORY(. RPC_SOURCE)
@@ -43,6 +38,7 @@ file(GLOB RPC_SOURCE_ALLOCATOR "storage/allocator/*.c")
 file(GLOB RPC_SOURCE_ALLOCATOR_ALLOC "storage/allocator/alloc/*.c")
 file(GLOB RPC_SOURCE_SERIALIZER_CJSON "serializer/cJSON/*.c")
 file(GLOB RPC_SOURCE_SERIALIZER_MD5 "serializer/MD5/*.c")
+file(GLOB RPC_SOURCE_COMPRESSOR_ZLIB "compressor/zlib/*.c")
 file(GLOB RPC_SOURCE_COMMON "common/*.cpp")
 file(GLOB RPC_SOURCE_HTTP "http/*.cpp")
 file(GLOB RPC_SOURCE_HTTP_EVENTS "http/events/*.cpp")
@@ -65,6 +61,7 @@ add_library(discovery SHARED
             ${RPC_SOURCE_VINTAGE}
             ${RPC_SOURCE_SERIALIZER_CJSON}
             ${RPC_SOURCE_SERIALIZER_MD5}
+            ${RPC_SOURCE_COMPRESSOR_ZLIB}
             ${RPC_SOURCE_MSQ}
             ${RPC_SOURCE_MSQ_DRIVER}
         )

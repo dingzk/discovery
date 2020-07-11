@@ -12,7 +12,10 @@
 #include <exception>
 #include <sstream>
 
+#include "common/log.h"
+#include "common/gzip.h"
 #include "http.h"
+
 
 static uint64_t generate_request_id()
 {
@@ -138,7 +141,7 @@ void Request::http_build_query(std::string &data)
     data += "\r\n";
     data +=  "Connection:keep-alive\r\n";
     data +=  "User-Agent: wbsearch\r\n";
-    data +=  "Accept: */*\r\n";
+    data +=  "Accept-Encoding: gzip\r\n";
     if (!isget && Url->query) {
         data +=  "Content-Length:" + std::to_string(strlen(Url->query)) + "\r\n";
         data +=  "Content-Type: application/x-www-form-urlencoded\r\n";
@@ -173,74 +176,69 @@ static int write_sock(int fd, const char * buffer_in, int len)
     return 0;
 }
 
-static bool http_read_n(int sock, char *buffer, int len, std::string &eof)
+static bool http_read_n_or_eof(int sock, std::string &read_buf, int read_len, std::string &eof)
 {
-    if (sock <= 0 || buffer == nullptr) {
+    if (sock <= 0) {
         return false;
     }
-    memset(buffer, 0, len);
     ssize_t read_pos = 0, temp_len = 0;
+
+    char temp_buf[BUFSIZ] = {0};
 
     struct pollfd pfds[1];
     pfds[0].fd = sock;
     pfds[0].events = POLLIN | POLLHUP | POLLERR;
     pfds[0].revents = 0;
 
-    while (read_pos < len) {
+    while (read_pos < read_len || !eof.empty()) {
         if (poll(pfds, 1, kDefaultWaitTime) <= 0) {
             if (errno == EINTR) {
                 continue;
             }
-//            LOG_ERROR("Read socket error:{}, poll for read timeout!", strerror(errno));
+            LOG_WARN("Read socket error:%s, poll for read timeout!", strerror(errno));
             return false;
         }
         if (!(pfds[0].revents & POLLIN)) {
             return false;
         }
-        temp_len = read(sock, buffer + read_pos, len - read_pos);
+        temp_len = read(sock, temp_buf, BUFSIZ);
         if (temp_len == 0) {
-//            LOG_ERROR("peer closed socket: {}!", sock);
+            LOG_WARN("peer closed socket: %d!", sock);
             return false;
         } else if (temp_len < 0) {
             if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) {
                 continue;
             }
-//            LOG_ERROR("Read socket error:{} !", strerror(errno));
+            LOG_WARN("Read socket error:%s !", strerror(errno));
             return false;
         }
         read_pos += temp_len;
-
-        if (!eof.empty()) {
-            std::string buffer_temp = buffer;
-            if (buffer_temp.find(eof) != std::string::npos) {
-                return true;
-            }
+        read_buf.append(temp_buf, temp_len);
+        if (!eof.empty() && read_buf.find(eof) != std::string::npos) {
+            return true;
+        }
+        if (read_len > 0 && read_pos >= read_len) {
+            return true;
         }
     }
 
-    return (read_pos == len);
+    return false;
 }
 
 Response::Response() : request_id(0), ret_code(0) {}
 
 bool Response::read_header(int sock, std::string &raw_header)
 {
-    result.reserve(1024);
-    char buffer[1024] = {0};
     int pos = 0;
     std::string eof = "\r\n\r\n";
-    while (true) {
-        bool flag = http_read_n(sock, buffer, 1023, eof);
-        result += buffer;
-        if ((pos = result.find(eof)) != std::string::npos) {
-            raw_header = result.substr(0, pos);
-            result.erase(0, pos + eof.size());
-            return true;
-        }
-        if (!flag) {
-            return false;
-        }
+    bool flag = http_read_n_or_eof(sock, response_read_buf, 0, eof);
+    if ((pos = response_read_buf.find(eof)) != std::string::npos) {
+        raw_header = response_read_buf.substr(0, pos);
+        response_read_buf.erase(0, pos + eof.size());
+        return true;
     }
+
+    return flag;
 }
 
 static void format_string(std::string &str)
@@ -291,18 +289,18 @@ bool Response::parse_header(const std::string &raw_header)
 
 bool Response::read_body(int sock, std::string &raw_body)
 {
-    char buffer[1024] = {0};
     int pos = 0;
+    bool flag;
     const char *crlf = "\r\n";
     std::string eof;
+
     if (header.find("transfer-encoding") != header.end()) {
         if (header["transfer-encoding"].compare("chunked") == 0) {
             eof = "\r\n0\r\n\r\n";
         }
 
-        while((pos = result.find(eof)) == std::string::npos) {
-            bool flag = http_read_n(sock, buffer, 1023, eof);
-            result += buffer;
+        if ((pos = response_read_buf.find(eof)) == std::string::npos) {
+            flag = http_read_n_or_eof(sock, response_read_buf, 0, eof);
             if (!flag) {
                 return false;
             }
@@ -310,53 +308,51 @@ bool Response::read_body(int sock, std::string &raw_body)
 
         int chunklen = 0;
         int offset = 0;
-        while ((pos = result.find(crlf, offset)) !=  std::string::npos) {
-            chunklen = strtol(result.substr(offset, pos).c_str(), NULL, 16);
-            body += result.substr(pos + strlen(crlf), chunklen);
-
+        while ((pos = response_read_buf.find(crlf, offset)) !=  std::string::npos) {
+            chunklen = strtol(response_read_buf.substr(offset, pos).c_str(), NULL, 16);
+            raw_body += response_read_buf.substr(pos + strlen(crlf), chunklen);
             offset = pos + 2 * strlen(crlf) + chunklen;
         }
         return true;
-    }
-
-    if (header.find("content-length") != header.end()) {
+    } else if (header.find("content-length") != header.end()) {
         int length = atoi(header["content-length"].c_str());
-        while (length - result.size() > 0) {
-            bool flag = http_read_n(sock, buffer, 1023, eof);
-            result += buffer;
+        if (length - response_read_buf.size() > 0) {
+            flag = http_read_n_or_eof(sock, response_read_buf, length - response_read_buf.size(), eof);
             if (!flag) {
                 return false;
             }
         }
-        body = result.substr(0, length);
+        raw_body = response_read_buf.substr(0, length);
+        return true;
     }
 
-    return true;
-
+    return false;
 }
 
-//bool Response::parse_body(const std::string &raw_body)
-//{
-//    const char *eof = "\r\n0\r\n\r\n";
-//    const char *crlf = "\r\n";
-//    int pos = 0;
-//
-//    // 3\r\nabc\r\n0\r\n\r\n
-//    if ((pos = raw_body.find(eof)) != std::string::npos) {
-//        int chunklen = 0;
-//        int offset = 0;
-//        while ((pos = raw_body.find(crlf, offset)) !=  std::string::npos) {
-//            chunklen = atoi(raw_body.substr(offset, pos).c_str());
-//            body += raw_body.substr(pos + strlen(crlf), chunklen);
-//
-//            offset = pos + 2 * strlen(crlf) + chunklen;
-//        }
-//    } else {
-//        body = raw_body;
-//    }
-//
-//    return true;
-//}
+bool Response::decode_body(const std::string &raw_body) {
+    int isgzip = false;
+    if (raw_body.empty()) {
+        return false;
+    }
+    if (header.find("content-encoding") != header.end()) {
+        if (header["content-encoding"].compare("gzip") == 0) {
+            isgzip = true;
+        }
+    }
+    if (!isgzip) {
+        body = raw_body;
+        return true;
+    }
+    char *decode_string;
+    int status = gzdecode((unsigned char *) raw_body.c_str(), raw_body.size(), &decode_string);
+    if (status == Z_OK) {
+        body = decode_string;
+    }
+    if (decode_string)
+        free(decode_string);
+
+    return true;
+}
 
 void Http::on_read(int sock, short which, void *arg)
 {
@@ -374,7 +370,7 @@ void Http::on_read(int sock, short which, void *arg)
     resptr->read_header(sock, raw_header);
     resptr->parse_header(raw_header);
     resptr->read_body(sock, raw_body);
-//    resptr->parse_body(raw_body);
+    resptr->decode_body(raw_body);
 
     http->set_read_buffer(request_id, resptr);
 }
@@ -398,12 +394,12 @@ int Http::do_call(std::map<uint64_t, Response> &resp)
         request_id = reqptr->request_id;
         pool_ = select_pool(reqptr);
         if (pool_ == nullptr) {
-            std::cout << "get a null connection pool" << std::endl;
+            LOG_WARN("get a null connection pool");
             continue;
         }
         Connection * conn = pool_->fetch();
         if (conn == nullptr) {
-            std::cout << "get null connection" << std::endl;
+            LOG_WARN("get null connection");
             continue;
         }
         reqptr->conn = conn;

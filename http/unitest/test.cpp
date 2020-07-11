@@ -33,13 +33,13 @@ void test_http_single(Http &http)
         Response &res = i->second;
         std::unordered_map<std::string, std::string> &header = res.header;
         std::string &body = res.body;
-        std::cout << "requestid: " << i->first << " code: " << res.ret_code << std::endl;
+        std::cout << "responseid: " << i->first << " code: " << res.ret_code << std::endl;
 
         for (auto iter = header.begin(); iter != header.end(); ++iter) {
             std::cout << iter->first << " : " << iter->second << std::endl;
         }
 
-        std::cout << "requestid: " << i->first << " resp body: " << res.body << std::endl;
+        std::cout << "responseid: " << i->first << " resp body: " << res.body << std::endl;
     }
 
 }
@@ -52,7 +52,7 @@ void test_http_thread(Http &http)
 
 int main() {
     Http http;
-    int i = 10;
+    int i = 1;
     while (i--) {
         test_http_single(http);
     }

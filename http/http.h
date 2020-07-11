@@ -54,10 +54,10 @@ public:
     bool read_header(int sock, std::string &raw_header);
     bool parse_header(const std::string &raw_header);
     bool read_body(int sock, std::string &raw_body);
-    bool parse_body(const std::string &raw_body);
+    bool decode_body(const std::string &raw_body);
 
 private:
-    std::string result;
+    std::string response_read_buf;
 
 };
 
