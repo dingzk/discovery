@@ -404,6 +404,10 @@ int Http::do_call(std::map<uint64_t, Response> &resp)
         }
         reqptr->conn = conn;
         int fd = conn->get_connect_sock();
+        if (fd <= 0) {
+            LOG_WARN("get none socket fd");
+            continue;
+        }
 #ifdef DEBUG
         char ipstr[INET_ADDRSTRLEN];
         conn->sock_to_ip(ipstr, INET_ADDRSTRLEN);
@@ -428,19 +432,20 @@ int Http::do_call(std::map<uint64_t, Response> &resp)
         request_id = reqptr->request_id;
         pool_ = select_pool(reqptr);
         if (pool_ == nullptr) {
-            continue;
+            goto CONTINUE;
         }
         pool_->release(reqptr->conn);
         if (need_poll_fds == 0) {
-            continue;
+            goto CONTINUE;
         }
         event_->remove(ev + i++);
-
+        // read buffer
         resptr = get_read_buffer(request_id);
         if (resptr != nullptr) {
             resp[request_id] = *resptr;
             delete resptr;
         }
+CONTINUE:
         delete requests[request_id];
         delete id_map[request_id];
     }
