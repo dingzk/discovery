@@ -19,6 +19,7 @@ int main(int argc, char **argv)
     configservice.add_watch("ks");
     configservice.add_watch("mi");
     configservice.add_watch("searcher_sdk");
+    configservice.add_watch("searcher_sdk1");
     configservice.watch();
 
     NamingService namingservice("register.kailash.weibo.com", ht);
@@ -39,8 +40,11 @@ int main(int argc, char **argv)
 
     std::string value;
     int i = 100;
-    while (true) {
+    while (i--) {
         configservice.find("ks", "elk_whitelist", value);
+        std::cout << "find value : " << value << std::endl;
+
+        configservice.find("ks2", "elk_whitelist", value);
         std::cout << "find value : " << value << std::endl;
 
         namingservice.find("for-test", "test.for", value);

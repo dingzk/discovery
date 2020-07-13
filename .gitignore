@@ -4,3 +4,9 @@
 *.out
 tags
 .idea
+CMakeFiles
+CTestTestfile.cmake
+build
+cmake-build-debug
+cmake_install.cmake
+Makefile
